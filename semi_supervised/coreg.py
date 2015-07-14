@@ -9,13 +9,18 @@ from joblib import Parallel, delayed
 import multiprocessing
 num_cores = multiprocessing.cpu_count()
 
+
+def get_neighbors(x, h):
+    nbrs = h.kneighbors(x, return_distance=False)
+    return nbrs
+
 def calc_d(clf_type, x_u, h, L, y, **clf_params):
     """
     Calculates the delta, the difference in squared errors between
         the regressor with and without the additional pseudolabeled points
     :param clf_type: type of model for new regressor
     :param x_u: features of unlabeled observations
-    :param h: the regressor
+    :param h: the current regressor
     :param L: features of labeled observations
     :param y: true targets of the observations in `L`
     :param clf_params: params for new model
@@ -28,7 +33,7 @@ def calc_d(clf_type, x_u, h, L, y, **clf_params):
     # measuring MSE on the entire labeled set is time consuming
     # COREG makes the approximation of d_xu by using only
     # the neighbors to calculate MSE
-    Omega = h.kneighbors(x_u, return_distance=False)
+    Omega = get_neighbors(x_u, h)
 
     # New regressor w/ additional info
     # _p denotes 'prime' tick in paper (for the new regressor)
@@ -127,7 +132,7 @@ class CoReg(BaseEstimator, ClassifierMixin):
 
                 # List of MSE diffs (per unlabeled obs)
                 clf_params = self.h[j].get_params()
-                clf_type = self.h[j].type
+                clf_type = type(self.h[j])
                 if self.n_jobs > 1:
                     d_xu_l = Parallel(n_jobs=self.n_jobs)(
                         delayed(calc_d)(clf_type, x_u, self.h[j], self.L[j], self.y[j], **clf_params)
