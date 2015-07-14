@@ -32,7 +32,6 @@ def calc_d(clf_type, x_u, h, L, y, **clf_params):
 
     # New regressor w/ additional info
     # _p denotes 'prime' tick in paper (for the new regressor)
-    # h_p = KNeighborsRegressor(n_neighbors=k, p=p)
     h_p = clf_type(**clf_params)
     h_p.fit(np.r_[L, x_u[None, :]], np.r_[y, y_est])
 
@@ -57,10 +56,11 @@ class CoReg(BaseEstimator, ClassifierMixin):
         IJCAI. Vol. 5. 2005.
     """
 
-    def __init__(self, n_u=25000, T=20, k=None, p=None,
+    def __init__(self, h=None, n_u=25000, T=20, k=None, p=None,
                  verbose=False, n_jobs=-1):
         # todo: immutable arguments please
         """
+        :param h: iterable of regressor models to use in the coreg process
         :param n_u: number of unlabeled observations to use (screw it)
         :param T: number of iterations to perform (# of observations to transfer)
         :param k: iterable of # neighbors to use for knn regression
@@ -75,8 +75,6 @@ class CoReg(BaseEstimator, ClassifierMixin):
 
         self.n_u = n_u
         self.T = T
-        self.k = [3, 3] if k is None else k
-        self.p = [2, 5] if p is None else p
 
         self.X_L = None  # Original labeled set
         self.L = None    # Iterable of the current trainings sets for each model
@@ -86,7 +84,13 @@ class CoReg(BaseEstimator, ClassifierMixin):
         self.U = None    # Current unlabeled set
         self.U_p = None  # Shuffled and sampled unlabeled set
 
-        self.h = None
+        if h is None:  # Default to KNeighborsRegressor if nothing is given
+            self.k = [3, 3] if k is None else k
+            self.p = [2, 5] if p is None else p
+            self.h = [KNeighborsRegressor(n_neighbors=k_j, p=p_j)
+                      for L_j, y_j, k_j, p_j in zip(self.L, self.y, self.k, self.p)]
+        else:
+            self.h = h
 
     def fit_init(self, X, y):
         # Setting up data
@@ -101,9 +105,9 @@ class CoReg(BaseEstimator, ClassifierMixin):
         self.U_p = self.X_U[np.random.permutation(
             np.arange(len(self.X_U)))[:self.n_u], :]
 
-        # Setting up base models
-        self.h = [KNeighborsRegressor(n_neighbors=k_j, p=p_j).fit(L_j, y_j)
-                  for L_j, y_j, k_j, p_j in zip(self.L, self.y, self.k, self.p)]
+        # Fitting base models
+        for h_i, L_i, y_i in zip(self.h, self.L, self.y):
+            h_i.fit(L_i, y_i)
 
     def fit(self, X, y):
         """
@@ -122,14 +126,14 @@ class CoReg(BaseEstimator, ClassifierMixin):
             for j in range(len(self.h)):
 
                 # List of MSE diffs (per unlabeled obs)
-                clf_params = {'n_neighbors': self.k[j], 'p':self.p[j]}
-
+                clf_params = self.h[j].get_params()
+                clf_type = self.h[j].type
                 if self.n_jobs > 1:
                     d_xu_l = Parallel(n_jobs=self.n_jobs)(
-                        delayed(calc_d)(KNeighborsRegressor, x_u, self.h[j], self.L[j], self.y[j], **clf_params)
+                        delayed(calc_d)(clf_type, x_u, self.h[j], self.L[j], self.y[j], **clf_params)
                         for x_u in self.U_p)
                 else:
-                    d_xu_l = [calc_d(KNeighborsRegressor, x_u, self.h[j], self.L[j], self.y[j], **clf_params)
+                    d_xu_l = [calc_d(clf_type, x_u, self.h[j], self.L[j], self.y[j], **clf_params)
                               for x_u in self.U_p]
 
                 d_xu_l = np.array(d_xu_l)
@@ -192,7 +196,9 @@ if __name__ == '__main__':
         X_all = np.r_[X_train, X_test]
         y_all = np.r_[y_train, np.nan*np.ones(len(y_test))]
 
-        clf = CoReg(T=5, verbose=True)
+        h = [KNeighborsRegressor(n_neighbors=3, p=2),
+             KNeighborsRegressor(n_neighbors=3, p=5)]
+        clf = CoReg(h=h, T=5, verbose=True)
         clf.fit(X_all, y_all)
         y_pred = clf.predict(X_test)
 
