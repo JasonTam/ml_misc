@@ -9,16 +9,16 @@ from joblib import Parallel, delayed
 import multiprocessing
 num_cores = multiprocessing.cpu_count()
 
-def calc_d(x_u, h, L, y, k, p):
+def calc_d(clf_type, x_u, h, L, y, **clf_params):
     """
     Calculates the delta, the difference in squared errors between
         the regressor with and without the additional pseudolabeled points
+    :param clf_type: type of model for new regressor
     :param x_u: features of unlabeled observations
     :param h: the regressor
     :param L: features of labeled observations
     :param y: true targets of the observations in `L`
-    :param k: number of neighbors in new regressor
-    :param p: Minkowski param for new regressor
+    :param clf_params: params for new model
     :return: delta MSE
     """
     # Get pseudo labels
@@ -32,7 +32,8 @@ def calc_d(x_u, h, L, y, k, p):
 
     # New regressor w/ additional info
     # _p denotes 'prime' tick in paper (for the new regressor)
-    h_p = KNeighborsRegressor(n_neighbors=k, p=p)
+    # h_p = KNeighborsRegressor(n_neighbors=k, p=p)
+    h_p = clf_type(**clf_params)
     h_p.fit(np.r_[L, x_u[None, :]], np.r_[y, y_est])
 
     # Compare MSE (use Omega to select only the neighbors)
@@ -117,8 +118,9 @@ class CoReg(BaseEstimator, ClassifierMixin):
             for j in range(len(self.h)):
 
                 # List of MSE diffs (per unlabeled obs)
+                clf_params = {'n_neighbors': self.k[j], 'p':self.p[j]}
                 d_xu_l = Parallel(n_jobs=num_cores)(
-                    delayed(calc_d)(x_u, self.h[j], self.L[j], self.y[j], self.k[j], self.p[j])
+                    delayed(calc_d)(KNeighborsRegressor, x_u, self.h[j], self.L[j], self.y[j], **clf_params)
                     for x_u in self.U_p)
 
                 d_xu_l = np.array(d_xu_l)
@@ -181,18 +183,19 @@ if __name__ == '__main__':
         X_all = np.r_[X_train, X_test]
         y_all = np.r_[y_train, np.nan*np.ones(len(y_test))]
 
-        clf = CoReg(verbose=True)
+        clf = CoReg(T=5, verbose=True)
         clf.fit(X_all, y_all)
         y_pred = clf.predict(X_test)
 
         scores.append(mean_squared_error(y_test, y_pred))
 
-        clf_base = KNeighborsRegressor(n_neighbors=3, p=2)
-        # clf_base = xgb.XGBRegressor()
+        # clf_base = KNeighborsRegressor(n_neighbors=3, p=2)
+        clf_base = xgb.XGBRegressor()
         clf_base.fit(X_train, y_train)
         y_pred_base = clf_base.predict(X_test)
         scores_base.append(mean_squared_error(y_test, y_pred_base))
 
+    print 'Coreg score:', scores
     print 'Base score:', scores_base
 
 
