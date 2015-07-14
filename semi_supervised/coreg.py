@@ -9,12 +9,21 @@ from joblib import Parallel, delayed
 import multiprocessing
 num_cores = multiprocessing.cpu_count()
 
+from sklearn.linear_model import LogisticRegression, ElasticNet
+from sklearn.svm import SVR
 
-def get_neighbors(x, h):
-    nbrs = h.kneighbors(x, return_distance=False)
-    return nbrs
+from rpforest import RPForest
 
-def calc_d(clf_type, x_u, h, L, y, **clf_params):
+
+def get_neighbors(x, nn_tracker):
+    if hasattr(nn_tracker, 'kneighbors'):
+        return nn_tracker.kneighbors(x, return_distance=False)
+    elif hasattr(nn_tracker, 'query'):
+        return nn_tracker.query(x)
+    else:
+        raise AttributeError
+
+def calc_d(clf_type, x_u, h, L, y, nn_tracker, **clf_params):
     """
     Calculates the delta, the difference in squared errors between
         the regressor with and without the additional pseudolabeled points
@@ -33,7 +42,7 @@ def calc_d(clf_type, x_u, h, L, y, **clf_params):
     # measuring MSE on the entire labeled set is time consuming
     # COREG makes the approximation of d_xu by using only
     # the neighbors to calculate MSE
-    Omega = get_neighbors(x_u, h)
+    Omega = get_neighbors(x_u, nn_tracker)
 
     # New regressor w/ additional info
     # _p denotes 'prime' tick in paper (for the new regressor)
@@ -97,6 +106,10 @@ class CoReg(BaseEstimator, ClassifierMixin):
         else:
             self.h = h
 
+        # Used for tracking NN
+        self.nn_trackers = [RPForest(leaf_size=50, no_trees=10),
+                            RPForest(leaf_size=50, no_trees=10)]
+
     def fit_init(self, X, y):
         # Setting up data
         ind_u = np.isnan(y)
@@ -111,8 +124,9 @@ class CoReg(BaseEstimator, ClassifierMixin):
             np.arange(len(self.X_U)))[:self.n_u], :]
 
         # Fitting base models
-        for h_i, L_i, y_i in zip(self.h, self.L, self.y):
-            h_i.fit(L_i, y_i)
+        for ii in range(len(self.h)):
+            self.h[ii].fit(self.L[ii], self.y[ii])
+            self.nn_trackers[ii].fit(self.L[ii])
 
     def fit(self, X, y):
         """
@@ -135,10 +149,16 @@ class CoReg(BaseEstimator, ClassifierMixin):
                 clf_type = type(self.h[j])
                 if self.n_jobs > 1:
                     d_xu_l = Parallel(n_jobs=self.n_jobs)(
-                        delayed(calc_d)(clf_type, x_u, self.h[j], self.L[j], self.y[j], **clf_params)
+                        delayed(calc_d)(clf_type, x_u,
+                                        self.h[j], self.L[j], self.y[j],
+                                        self.nn_trackers[j],
+                                        **clf_params)
                         for x_u in self.U_p)
                 else:
-                    d_xu_l = [calc_d(clf_type, x_u, self.h[j], self.L[j], self.y[j], **clf_params)
+                    d_xu_l = [calc_d(clf_type, x_u,
+                                     self.h[j], self.L[j], self.y[j],
+                                     self.nn_trackers[j],
+                                     **clf_params)
                               for x_u in self.U_p]
 
                 d_xu_l = np.array(d_xu_l)
@@ -159,6 +179,9 @@ class CoReg(BaseEstimator, ClassifierMixin):
                     self.L[ii] = np.append(self.L[ii], pi[j][0], axis=0)
                     self.y[ii] = np.append(self.y[ii], pi[j][1])
                     self.h[ii].fit(self.L[ii], self.y[ii])
+
+                    self.nn_trackers[ii].trees = []
+                    self.nn_trackers[ii].fit(self.L[ii])
                     change_flag = True
 
             if change_flag:
@@ -201,9 +224,11 @@ if __name__ == '__main__':
         X_all = np.r_[X_train, X_test]
         y_all = np.r_[y_train, np.nan*np.ones(len(y_test))]
 
-        h = [KNeighborsRegressor(n_neighbors=3, p=2),
-             KNeighborsRegressor(n_neighbors=3, p=5)]
-        clf = CoReg(h=h, T=5, verbose=True)
+        # h = [KNeighborsRegressor(n_neighbors=3, p=2),
+        #      xgb.XGBRegressor()]
+        h = [xgb.XGBRegressor(),
+             ElasticNet()]
+        clf = CoReg(h=h, T=10, verbose=True, n_jobs=1)
         clf.fit(X_all, y_all)
         y_pred = clf.predict(X_test)
 
