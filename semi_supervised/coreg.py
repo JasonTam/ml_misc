@@ -15,6 +15,9 @@ from sklearn.svm import SVR
 from rpforest import RPForest
 
 
+def top_k(arr, k):
+    return np.argsort(arr)[-k:][::-1]
+
 def get_neighbors(x, nn_tracker):
     if hasattr(nn_tracker, 'kneighbors'):
         return nn_tracker.kneighbors(x, return_distance=False)
@@ -70,15 +73,14 @@ class CoReg(BaseEstimator, ClassifierMixin):
         IJCAI. Vol. 5. 2005.
     """
 
-    def __init__(self, h=None, n_u=25000, T=20, k=None, p=None,
+    def __init__(self, h=None, n_u=25000, T=20, k=1,
                  verbose=False, n_jobs=-1):
         # todo: immutable arguments please
         """
         :param h: iterable of regressor models to use in the coreg process
         :param n_u: number of unlabeled observations to use (screw it)
         :param T: number of iterations to perform (# of observations to transfer)
-        :param k: iterable of # neighbors to use for knn regression
-        :param p: iterable of minkowski params for knn regression
+        :param k: number of top candidates to transfer
         :param verbose: verbosity (print timings etc)
         :param n_jobs: # jobs to run in parallel.
             Note that many cases parallelizing will introduce too much
@@ -89,6 +91,7 @@ class CoReg(BaseEstimator, ClassifierMixin):
 
         self.n_u = n_u
         self.T = T
+        self.k = k
 
         self.X_L = None  # Original labeled set
         self.L = None    # Iterable of the current trainings sets for each model
@@ -99,10 +102,9 @@ class CoReg(BaseEstimator, ClassifierMixin):
         self.U_p = None  # Shuffled and sampled unlabeled set
 
         if h is None:  # Default to KNeighborsRegressor if nothing is given
-            self.k = [3, 3] if k is None else k
-            self.p = [2, 5] if p is None else p
             self.h = [KNeighborsRegressor(n_neighbors=k_j, p=p_j)
-                      for L_j, y_j, k_j, p_j in zip(self.L, self.y, self.k, self.p)]
+                      for L_j, y_j, k_j, p_j in zip(self.L, self.y,
+                                                    [3, 3], [2, 5])]
         else:
             self.h = h
 
@@ -163,10 +165,10 @@ class CoReg(BaseEstimator, ClassifierMixin):
 
                 d_xu_l = np.array(d_xu_l)
                 if any(d_xu_l > 0):  # At least one obs made an improvement
-                    ind_top = np.argmax(d_xu_l)  # Index of the best candidate
+                    ind_top = top_k(d_xu_l, self.k)  # Index of top k candidates
                     x_top = self.U_p[ind_top, :]
                     y_top = self.h[j].predict(x_top)
-                    pi[j] = (x_top[None, :], y_top)    # New pt to be added next iter
+                    pi[j] = (x_top, y_top)    # New pt to be added next iter
                     self.U_p = np.delete(self.U_p, (ind_top), axis=0)    # Remove pt from set
                 else:
                     pi[j] = None
@@ -228,7 +230,7 @@ if __name__ == '__main__':
         #      xgb.XGBRegressor()]
         h = [xgb.XGBRegressor(),
              ElasticNet()]
-        clf = CoReg(h=h, T=10, verbose=True, n_jobs=1)
+        clf = CoReg(h=h, T=10, verbose=True, k=5, n_jobs=1)
         clf.fit(X_all, y_all)
         y_pred = clf.predict(X_test)
 
