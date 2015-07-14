@@ -58,7 +58,7 @@ class CoReg(BaseEstimator, ClassifierMixin):
     """
 
     def __init__(self, n_u=25000, T=20, k=None, p=None,
-                 verbose=False):
+                 verbose=False, n_jobs=-1):
         # todo: immutable arguments please
         """
         :param n_u: number of unlabeled observations to use (screw it)
@@ -66,8 +66,12 @@ class CoReg(BaseEstimator, ClassifierMixin):
         :param k: iterable of # neighbors to use for knn regression
         :param p: iterable of minkowski params for knn regression
         :param verbose: verbosity (print timings etc)
+        :param n_jobs: # jobs to run in parallel.
+            Note that many cases parallelizing will introduce too much
+            overhead to be faster than using just a single thread.
         """
         self.verbose = verbose
+        self.n_jobs = multiprocessing.cpu_count() if n_jobs == -1 else n_jobs
 
         self.n_u = n_u
         self.T = T
@@ -119,9 +123,14 @@ class CoReg(BaseEstimator, ClassifierMixin):
 
                 # List of MSE diffs (per unlabeled obs)
                 clf_params = {'n_neighbors': self.k[j], 'p':self.p[j]}
-                d_xu_l = Parallel(n_jobs=num_cores)(
-                    delayed(calc_d)(KNeighborsRegressor, x_u, self.h[j], self.L[j], self.y[j], **clf_params)
-                    for x_u in self.U_p)
+
+                if self.n_jobs > 1:
+                    d_xu_l = Parallel(n_jobs=self.n_jobs)(
+                        delayed(calc_d)(KNeighborsRegressor, x_u, self.h[j], self.L[j], self.y[j], **clf_params)
+                        for x_u in self.U_p)
+                else:
+                    d_xu_l = [calc_d(KNeighborsRegressor, x_u, self.h[j], self.L[j], self.y[j], **clf_params)
+                              for x_u in self.U_p]
 
                 d_xu_l = np.array(d_xu_l)
                 if any(d_xu_l > 0):  # At least one obs made an improvement
