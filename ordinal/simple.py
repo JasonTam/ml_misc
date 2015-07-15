@@ -15,7 +15,7 @@ class SimpleOrdinalClassifier(BaseEstimator, ClassifierMixin):
     def __init__(self, base_estimator=None,):
         self.base_estimator = base_estimator
     
-    def fit(self, X, y):
+    def fit(self, X, y, **fit_params):
         self.classes_ = np.unique(y)
         self.k_ = len(self.classes_)
         self.estimators_ = []
@@ -23,14 +23,14 @@ class SimpleOrdinalClassifier(BaseEstimator, ClassifierMixin):
         # Fitting binary classifiers at each cut
         for cut in sorted(self.classes_)[:-1]:
             c_bin = y > cut  # new binary targets
-            fitted_clf = clone(self.base_estimator).fit(X, c_bin)
+            fitted_clf = clone(self.base_estimator).fit(X, c_bin, **fit_params)
             self.estimators_.append(fitted_clf)         
         
         return self
     
-    def predict_proba(self, X):
+    def predict_proba(self, X, **predict_params):
         """Probs corresponding to self.classes_"""
-        p = np.array([clf.predict_proba(X)[:, 1]
+        p = np.array([clf.predict_proba(X, **predict_params)[:, 1]
               for clf in self.estimators_]).T
         pr = -np.diff(np.c_[np.ones(p.shape[0]), p, np.zeros(p.shape[0])],
                      axis=1)
