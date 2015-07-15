@@ -36,8 +36,8 @@ class SimpleOrdinalClassifier(BaseEstimator, ClassifierMixin):
                      axis=1)
         return pr
     
-    def predict(self, X):
-        max_inds = np.argmax(self.predict_proba(X), axis=1)
+    def predict(self, X, **predict_params):
+        max_inds = np.argmax(self.predict_proba(X, **predict_params), axis=1)
         return np.array([self.classes_[ind] for ind in max_inds])
 
 
