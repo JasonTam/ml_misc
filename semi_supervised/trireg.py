@@ -2,7 +2,8 @@ import numpy as np
 from sklearn.base import BaseEstimator, ClassifierMixin, clone
 import itertools
 from sklearn.neighbors import KNeighborsRegressor
-from sklearn.linear_model import LogisticRegression, ElasticNet
+from sklearn.linear_model import LinearRegression, LogisticRegression, ElasticNet
+from sklearn.ensemble import ExtraTreesRegressor
 from sklearn.svm import SVR
 
 from time import time
@@ -40,7 +41,7 @@ class TriReg(BaseEstimator, ClassifierMixin):
         Knowledge and Information Systems 24.3 (2010): 415-439.
     """
 
-    def __init__(self, h=None, T=10, verbose=False):
+    def __init__(self, h=None, T=10, accept_thresh=0.5, verbose=False):
         # todo: immutable arguments please
         """
         :param h: iterable of regressor models to use tri-training process
@@ -49,6 +50,7 @@ class TriReg(BaseEstimator, ClassifierMixin):
         """
         self.verbose = verbose
         self.T = T
+        self.accept_thresh = accept_thresh
 
         self.L_X = None    # Iterable of the current trainings sets for each model
         self.L_y = None   # Iterable of current targets (should correspond to `L_X`)
@@ -88,7 +90,7 @@ class TriReg(BaseEstimator, ClassifierMixin):
 
             # Predict unlabeled data
             U_preds[:, ii] = self.h[ii].predict(self.U_X)
-        transfers = get_transfers(U_preds)
+        transfers = get_transfers(U_preds, thresh=self.accept_thresh)
         num_xfer = self.transfer_obs(transfers)
         print 'Number transfers: %d (%d%%)' % (num_xfer, 100.*num_xfer/len(U_preds))
         return num_xfer
@@ -147,7 +149,7 @@ class TriReg(BaseEstimator, ClassifierMixin):
         return np.mean([h.predict(X) for h in self.h], axis=0)
 
 
-def get_transfers(U_preds):
+def get_transfers(U_preds, thresh=0.5):
     """ Criterion for transferring unlabeled data
     :param U_preds:
     :return list of transfers. Each transfer is a tuple (index, value)
@@ -156,7 +158,7 @@ def get_transfers(U_preds):
     """
     transfers = []
     dist = lambda a, b: np.abs(a - b)
-    acceptance = lambda a, b: dist(a, b) < .5
+    acceptance = lambda a, b: dist(a, b) < thresh
 
     cols = set(range(U_preds.shape[1]))
     for col in cols:
@@ -195,7 +197,7 @@ if __name__ == '__main__':
         y_all = np.r_[y_train, np.nan*np.ones(len(y_test))]
 
 
-        h = [LogisticRegression(), ElasticNet(), SVR()]
+        h = [LinearRegression(), ElasticNet(), KNeighborsRegressor()]
 
         clf = TriReg(h=h, T=10, verbose=True)
         clf.fit(X_all, y_all)
