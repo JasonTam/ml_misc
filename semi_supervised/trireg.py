@@ -89,7 +89,11 @@ class TriReg(BaseEstimator, ClassifierMixin):
             # TODO: Track validation loss etc here
 
             # Predict unlabeled data
-            U_preds[:, ii] = self.h[ii].predict(self.U_X)
+            if len(self.U_X):
+                U_preds[:, ii] = self.h[ii].predict(self.U_X)
+            else:
+                print 'Ran out of unlabeled obs'
+                return 0
         transfers = get_transfers(U_preds, thresh=self.accept_thresh)
         num_xfer = self.transfer_obs(transfers)
         print 'Number transfers: %d (%d%%)' % (num_xfer, 100.*num_xfer/len(U_preds))
