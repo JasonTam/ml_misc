@@ -18,8 +18,20 @@ def shuffle_unison(a, b):
 
 
 def bootstrap_resample(X, n=None, inds=False):
-    if n == None:
+    """ Bootstrap resampling
+    :param X: observations to resample
+    :param n: Number of samples to pick out.
+        If `None`, same number of samples as original observations.
+        If `n` < 1, `n` will be treated as a proportion
+    :param inds: If `True` just return the resampled indices
+    :return:
+    """
+    if n is None:
         n = len(X)
+    elif 0 < n < 1:
+        n = int(len(X) * n)
+    else:
+        raise ValueError('Invalid `n`')
 
     resample_i = np.floor(np.random.rand(n)*len(X)).astype(int)
     if inds:
@@ -41,20 +53,28 @@ class TriReg(BaseEstimator, ClassifierMixin):
         Knowledge and Information Systems 24.3 (2010): 415-439.
     """
 
-    def __init__(self, h=None, T=10, accept_thresh=0.5, verbose=False):
+    def __init__(self, h=None, T=10, accept_thresh=0.5,
+                 bootstrap=False,
+                 verbose=False):
         # todo: immutable arguments please
         """
         :param h: iterable of regressor models to use tri-training process
         :param T: number of iterations
+        :param bootstrap: Iterable of bootstrap resample `n` sample values to use
+            per model. If `False`, don't bootstrap
         :param verbose: verbosity (print timings etc)
         """
         self.verbose = verbose
         self.T = T
         self.accept_thresh = accept_thresh
+        self.bootstrap = bootstrap
 
         self.L_X = None    # Iterable of the current trainings sets for each model
         self.L_y = None   # Iterable of current targets (should correspond to `L_X`)
         self.U_X = None  # Unlabeled set
+
+        self.tot_xfer = 0  # Cumulative transfer
+        self.n_u_orig = None    # Original number of unlabeled observations
 
         if h is None:  # Default to KNeighborsRegressor if nothing is given
             self.h = [KNeighborsRegressor(n_neighbors=k_j, p=p_j)
@@ -71,11 +91,16 @@ class TriReg(BaseEstimator, ClassifierMixin):
         # self.X_U = X[ind_u, :]
 
         # Each model has its own dedicated pool of labeled data
-        self.L_X = [X_L.copy()] * len(self.h)
+        if self.bootstrap:
+            self.L_X = [bootstrap_resample(X_L.copy(), n=self.bootstrap[ii])
+                        for ii in range(len(self.h))]
+        else:
+            self.L_X = [X_L.copy()] * len(self.h)
         self.L_y = [y_train.copy()] * len(self.h)
 
         # Every model shares the same pool of unlabeled data to grab from
         self.U_X = X[ind_u, :]
+        self.n_u_orig = len(self.U_X)
 
     def fit_iter(self):
         win_list = []
@@ -96,7 +121,9 @@ class TriReg(BaseEstimator, ClassifierMixin):
                 return 0
         transfers = get_transfers(U_preds, thresh=self.accept_thresh)
         num_xfer = self.transfer_obs(transfers)
-        print 'Number transfers: %d (%d%%)' % (num_xfer, 100.*num_xfer/len(U_preds))
+        self.tot_xfer += num_xfer
+        print 'Number transfers: %d (%d%%)' % (num_xfer, 100.*num_xfer/len(U_preds)),
+        print 'Total transfers: %d/%d' % (self.tot_xfer, self.n_u_orig)
         return num_xfer
 
     def transfer_obs(self, transfers):
