@@ -17,7 +17,7 @@ def shuffle_unison(a, b):
     return c[:, :a.size//len(a)].reshape(a.shape), c[:, a.size//len(a):].reshape(b.shape)
 
 
-def bootstrap_resample(X, n=None, inds=False):
+def bootstrap_resample(X=None, n=None, inds=False):
     """ Bootstrap resampling
     :param X: observations to resample
     :param n: Number of samples to pick out.
@@ -92,11 +92,13 @@ class TriReg(BaseEstimator, ClassifierMixin):
 
         # Each model has its own dedicated pool of labeled data
         if self.bootstrap:
-            self.L_X = [bootstrap_resample(X_L.copy(), n=self.bootstrap[ii])
-                        for ii in range(len(self.h))]
+            boot_inds = [bootstrap_resample(X=None, n=self.bootstrap[ii], inds=True)
+                         for ii in range(len(self.h))]
+            self.L_X = [X_L.copy()[inds] for inds in boot_inds]
+            self.L_y = [y_train.copy()[inds] for inds in boot_inds]
         else:
             self.L_X = [X_L.copy()] * len(self.h)
-        self.L_y = [y_train.copy()] * len(self.h)
+            self.L_y = [y_train.copy()] * len(self.h)
 
         # Every model shares the same pool of unlabeled data to grab from
         self.U_X = X[ind_u, :]
