@@ -123,7 +123,7 @@ class TriReg(BaseEstimator, ClassifierMixin):
         num_xfer = self.transfer_obs(transfers)
         self.tot_xfer += num_xfer
         print 'Number transfers: %d (%d%%)' % (num_xfer, 100.*num_xfer/len(U_preds)),
-        print 'Total transfers: %d/%d' % (self.tot_xfer, self.n_u_orig)
+        print 'Total transfers: %d/%d (%d%%)' % (self.tot_xfer, self.n_u_orig, 100.*self.tot_xfer/self.n_u_orig)
         return num_xfer
 
     def transfer_obs(self, transfers):
