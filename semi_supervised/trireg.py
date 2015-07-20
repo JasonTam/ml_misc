@@ -92,7 +92,7 @@ class TriReg(BaseEstimator, ClassifierMixin):
 
         # Each model has its own dedicated pool of labeled data
         if self.bootstrap:
-            boot_inds = [bootstrap_resample(X=None, n=self.bootstrap[ii], inds=True)
+            boot_inds = [bootstrap_resample(X=X_L, n=self.bootstrap[ii], inds=True)
                          for ii in range(len(self.h))]
             self.L_X = [X_L.copy()[inds] for inds in boot_inds]
             self.L_y = [y_train.copy()[inds] for inds in boot_inds]
