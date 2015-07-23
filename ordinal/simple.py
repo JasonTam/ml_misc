@@ -1,4 +1,5 @@
 from joblib import Parallel, delayed
+import multiprocessing
 import numpy as np
 from sklearn.base import BaseEstimator, ClassifierMixin, clone
 
@@ -54,9 +55,9 @@ class ParSimpleOrdinalClassifier(BaseEstimator, ClassifierMixin):
     The discrete encoded classes should have ordinal values
     """
     
-    def __init__(self, base_estimator=None, n_jobs=4):
+    def __init__(self, base_estimator=None, n_jobs=-1):
         self.base_estimator = base_estimator
-        self.n_jobs = n_jobs
+        self.n_jobs = multiprocessing.cpu_count() if n_jobs == -1 else n_jobs
            
     def fit(self, X, y):
         self.classes_ = np.unique(y)
