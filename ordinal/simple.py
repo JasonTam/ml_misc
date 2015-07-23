@@ -66,7 +66,7 @@ class ParSimpleOrdinalClassifier(BaseEstimator, ClassifierMixin):
         # new binary targets
         c_bins = [y > cut for cut in sorted(self.classes_)[:-1]]
             
-        self.estimators_ = Parallel(n_jobs=self.n_jobs)\
+        self.estimators_ = Parallel(n_jobs=self.n_jobs, backend='threading')\
             (delayed(fit_bin)(self.base_estimator, X, c_bin) 
              for c_bin in c_bins)
         return self
