@@ -41,6 +41,10 @@ class SimpleOrdinalClassifier(BaseEstimator, ClassifierMixin):
         max_inds = np.argmax(self.predict_proba(X, **predict_params), axis=1)
         return np.array([self.classes_[ind] for ind in max_inds])
 
+    def predict_weighted(self, X):
+        probs = self.predict_proba(X)
+        return np.sum(self.classes_ * probs, axis=1)
+
 
 def fit_bin(est, X, y):
     return clone(est).fit(X, y)
@@ -83,3 +87,7 @@ class ParSimpleOrdinalClassifier(BaseEstimator, ClassifierMixin):
     def predict(self, X):
         max_inds = np.argmax(self.predict_proba(X), axis=1)
         return np.array([self.classes_[ind] for ind in max_inds])
+
+    def predict_weighted(self, X):
+        probs = self.predict_proba(X)
+        return np.sum(self.classes_ * probs, axis=1)
