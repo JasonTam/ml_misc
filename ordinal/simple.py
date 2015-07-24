@@ -88,6 +88,12 @@ class ParSimpleOrdinalClassifier(BaseEstimator, ClassifierMixin):
         max_inds = np.argmax(self.predict_proba(X), axis=1)
         return np.array([self.classes_[ind] for ind in max_inds])
 
-    def predict_weighted(self, X):
+    def predict_weighted(self, X, geometric=False):
         probs = self.predict_proba(X)
-        return np.sum(self.classes_ * probs, axis=1)
+        if geometric:
+            return np.exp(
+                np.sum(probs*np.log(self.classes_), axis=1) /
+                np.sum(probs, axis=1))
+        else:
+            return np.sum(self.classes_ * probs, axis=1)
+
