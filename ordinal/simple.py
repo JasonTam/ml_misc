@@ -47,7 +47,7 @@ class SimpleOrdinalClassifier(BaseEstimator, ClassifierMixin):
         :return:
         """
         self.base_estimator = base_estimator
-        self.base_estimator_type = base_estimator_type
+        self.base_estimator_type = base_estimator_type if base_estimator_type else {}
         self.base_estimator_params = base_estimator_params
         self.n_jobs = multiprocessing.cpu_count() if n_jobs == -1 else n_jobs
 
