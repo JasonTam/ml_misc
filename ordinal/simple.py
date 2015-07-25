@@ -3,8 +3,10 @@ import multiprocessing
 import numpy as np
 from sklearn.base import BaseEstimator, ClassifierMixin, clone
 
+
 def fit_bin(est, X, y, **fit_params):
     return clone(est).fit(X, y, **fit_params)
+
 
 class SimpleOrdinalClassifier(BaseEstimator, ClassifierMixin):
     """A wrapper for ordinal classification
