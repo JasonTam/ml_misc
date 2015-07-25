@@ -6,6 +6,7 @@ from sklearn.base import BaseEstimator, ClassifierMixin, clone
 
 def fit_bin(X, y,
             est=None, est_type=None, est_params=None,
+            label_transformer=None,
             **fit_params):
     """ Fits a new estimator given an estimator object or estimator type and params
     :param est: estimator object
@@ -17,6 +18,10 @@ def fit_bin(X, y,
     :return: new fitted estimator
     """
     assert any([est, est_type])
+
+    if label_transformer:
+        y = label_transformer(y)
+
     new_est = None
     if est:
         new_est = clone(est)
@@ -38,17 +43,22 @@ class SimpleOrdinalClassifier(BaseEstimator, ClassifierMixin):
     
     def __init__(self, base_estimator=None,
                  base_estimator_type=None, base_estimator_params=None,
+                 label_transformer=None,
                  n_jobs=-1):
         """
         :param base_estimator: base binary estimator object
         :param base_estimator_type: estimator type and params can be given instead of `base_estimator`
         :param base_estimator_params: params to initialize `base_estimator_type` if given
+        :param label_transformer: transformation to apply to labels before binary split
+            (ex. transforming to categorical format)
         :param n_jobs: # of threads to run
         :return:
         """
         self.base_estimator = base_estimator
         self.base_estimator_type = base_estimator_type if base_estimator_type else {}
         self.base_estimator_params = base_estimator_params
+        self.label_transformer = label_transformer
+
         self.n_jobs = multiprocessing.cpu_count() if n_jobs == -1 else n_jobs
 
         self.classes_ = None
@@ -67,6 +77,7 @@ class SimpleOrdinalClassifier(BaseEstimator, ClassifierMixin):
             self.estimators_ = Parallel(n_jobs=self.n_jobs, backend='threading')\
                 (delayed(fit_bin)(X, c_bin,
                                   self.base_estimator, self.base_estimator_type, self.base_estimator_params,
+                                  self.label_transformer,
                                   **fit_params)
                  for c_bin in c_bins)
         elif self.n_jobs == 1:
@@ -74,6 +85,7 @@ class SimpleOrdinalClassifier(BaseEstimator, ClassifierMixin):
             for c_bin in c_bins:
                 fitted_clf = fit_bin(X, c_bin,
                                      self.base_estimator, self.base_estimator_type, self.base_estimator_params,
+                                     self.label_transformer,
                                      **fit_params)
                 self.estimators_.append(fitted_clf)
 
