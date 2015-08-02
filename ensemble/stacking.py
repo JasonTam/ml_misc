@@ -82,6 +82,6 @@ if __name__ == '__main__':
         q.fit(X_train, y_train)
         scores_baseline.append(mse(y_val, q.predict(X_val)))
 
-print
-print np.mean(scores)
-print np.mean(scores_baseline)
+    print
+    print np.mean(scores)
+    print np.mean(scores_baseline)
