@@ -88,7 +88,8 @@ class Stacking(BaseEstimator, ClassifierMixin):
         y_base_preds = np.concatenate(holdout_ys)
 
         # Train meta estimator
-        self.meta_estimator.fit(X_base_preds, y_base_preds)
+        meta_params = param_d['meta']
+        self.meta_estimator.fit(X_base_preds, y_base_preds, **meta_params)
 
         # Retrain the base estimators on entire set
         if self.retrain:
@@ -112,7 +113,9 @@ class Stacking(BaseEstimator, ClassifierMixin):
 
         # base_preds = np.array([est.predict(X) for est in self.base_estimators]).T
         base_preds = np.array(base_preds).T
-        final_pred = self.meta_estimator.predict(base_preds)
+
+        meta_params = param_d['meta']
+        final_pred = self.meta_estimator.predict(base_preds, **meta_params)
         return final_pred
 
 
