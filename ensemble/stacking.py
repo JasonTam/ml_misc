@@ -27,7 +27,7 @@ class Stacking(BaseEstimator, ClassifierMixin):
 
     def __init__(self, base_estimators, meta_estimator,
                  cv=3, retrain=True, one_fold=False,
-                 fit_params=None, predict_params=None):
+                 fit_params=None, pred_params=None):
         """
         :param base_estimators: base level 0 estimators
         :param meta_estimator: meta level 1 estimator
@@ -35,7 +35,7 @@ class Stacking(BaseEstimator, ClassifierMixin):
         :param retrain: retrain base estimators on full set after meta is trained
         :param one_fold: only use 1 fold split
         :param fit_params: predefined fit params (so we don't have to pass them in when fitting)
-        :param predict_params: predefined predict params (so we don't have to pass them in when fitting)
+        :param pred_params: predefined predict params (so we don't have to pass them in when fitting)
 
         :return:
         """
@@ -46,11 +46,13 @@ class Stacking(BaseEstimator, ClassifierMixin):
         self.retrain = retrain
         self.one_fold = one_fold
 
-        self.fit_params=fit_params
-        self.predict_params = predict_params
+        self.fit_params = fit_params
+        self.pred_params = pred_params
 
     def fit(self, X, y, **fit_params):
         # Parse params
+        if not len(fit_params) and self.fit_params:
+            fit_params = self.fit_params
         param_d = param_map(fit_params)
 
         holdout_base_preds = []
@@ -95,7 +97,20 @@ class Stacking(BaseEstimator, ClassifierMixin):
         return self
 
     def predict(self, X, **pred_params):
-        base_preds = np.array([est.predict(X) for est in self.base_estimators]).T
+        # Parse params
+        if not len(pred_params) and self.pred_params:
+            pred_params = self.pred_params
+        param_d = param_map(pred_params)
+
+        base_preds = []
+        for ii, est in enumerate(self.base_estimators):
+            base_params = param_d[str(ii)]
+
+            base_pred = est.predict(X, **base_params)
+            base_preds.append(base_pred)
+
+        # base_preds = np.array([est.predict(X) for est in self.base_estimators]).T
+        base_preds = np.array(base_preds).T
         final_pred = self.meta_estimator.predict(base_preds)
         return final_pred
 
