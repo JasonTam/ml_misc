@@ -26,13 +26,17 @@ class Stacking(BaseEstimator, ClassifierMixin):
     """
 
     def __init__(self, base_estimators, meta_estimator,
-                 cv=3, retrain=True, one_fold=False):
+                 cv=3, retrain=True, one_fold=False,
+                 fit_params=None, predict_params=None):
         """
         :param base_estimators: base level 0 estimators
         :param meta_estimator: meta level 1 estimator
         :param cv: # of folds
         :param retrain: retrain base estimators on full set after meta is trained
         :param one_fold: only use 1 fold split
+        :param fit_params: predefined fit params (so we don't have to pass them in when fitting)
+        :param predict_params: predefined predict params (so we don't have to pass them in when fitting)
+
         :return:
         """
         self.base_estimators = base_estimators
@@ -41,6 +45,9 @@ class Stacking(BaseEstimator, ClassifierMixin):
 
         self.retrain = retrain
         self.one_fold = one_fold
+
+        self.fit_params=fit_params
+        self.predict_params = predict_params
 
     def fit(self, X, y, **fit_params):
         # Parse params
@@ -56,7 +63,15 @@ class Stacking(BaseEstimator, ClassifierMixin):
 
             # Train base estimators
             for ii, est in enumerate(self.base_estimators):
-                est.fit(X_train, y_train)
+                base_params = param_d[str(ii)]
+                X_base = base_params.pop('X', X)
+                y_base = base_params.pop('y', y)
+
+                X_base_train, y_base_train = X_base[train_ind], y_base[train_ind]
+
+                est.fit(X_base_train, y_base_train, **base_params)
+
+                # est.fit(X_train, y_train)
 
             # Predict hold out set with base estimators
             holdout_base_pred = np.array([est.predict(X_holdout) for est in self.base_estimators]).T
