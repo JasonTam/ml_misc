@@ -4,6 +4,21 @@ import numpy as np
 from sklearn.base import BaseEstimator, ClassifierMixin, clone
 from sklearn.cross_validation import KFold, StratifiedKFold
 
+from collections import defaultdict
+
+def param_map(params):
+    """
+    :param params: keyed by a string in the following format:
+        #_paramname
+        # is the index of the base estimator or 'meta'
+    :return:
+    """
+    split_d = defaultdict(lambda: {})
+    for k, v in params.items():
+        ind, param_name = k.split('_', 1)
+        split_d[ind][param_name] = v
+    return split_d
+
 
 class Stacking(BaseEstimator, ClassifierMixin):
     """Stacked generalization
@@ -20,6 +35,9 @@ class Stacking(BaseEstimator, ClassifierMixin):
         self.retrain = retrain
 
     def fit(self, X, y, **fit_params):
+        # Parse params
+        param_d = param_map(fit_params)
+
         kf = KFold(n=len(y), n_folds=self.cv)
         # for train_ind, holdout_ind in kf:
         train_ind, holdout_ind = iter(kf).next()
@@ -27,7 +45,7 @@ class Stacking(BaseEstimator, ClassifierMixin):
         y_train, y_holdout = y[train_ind], y[holdout_ind]
 
         # Train base estimators
-        for est in self.base_estimators:
+        for ii, est in enumerate(self.base_estimators):
             est.fit(X_train, y_train)
 
         # Predict hold out set with base estimators
@@ -62,7 +80,6 @@ if __name__ == '__main__':
     base_ests = [LinearRegression(), Ridge(), Lasso()]
     meta_est = ExtraTreesRegressor(n_estimators=200)
 
-
     scores_baseline = []
     scores = []
     kf = KFold(len(y), n_folds=4)
@@ -83,5 +100,5 @@ if __name__ == '__main__':
         scores_baseline.append(mse(y_val, q.predict(X_val)))
 
     print
-    print np.mean(scores)
-    print np.mean(scores_baseline)
+    print 'Scores \t\t\t', np.mean(scores)
+    print 'LinReg baseline \t', np.mean(scores_baseline)
