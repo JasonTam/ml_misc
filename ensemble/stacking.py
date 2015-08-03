@@ -9,13 +9,14 @@ from collections import defaultdict
 def param_map(params):
     """
     :param params: keyed by a string in the following format:
-        #_paramname
-        # is the index of the base estimator or 'meta'
+        base#_paramname or meta_paramname
+        # is the index of the base estimator
     :return:
     """
     split_d = defaultdict(lambda: {})
     for k, v in params.items():
         ind, param_name = k.split('_', 1)
+        ind = ind.replace('base', '')
         split_d[ind][param_name] = v
     return split_d
 
