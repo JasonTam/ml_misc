@@ -100,9 +100,12 @@ class SimpleOrdinalClassifier(BaseEstimator, ClassifierMixin):
                       axis=1)
         return pr
     
-    def predict(self, X, **pred_params):
-        max_inds = np.argmax(self.predict_proba(X, **pred_params), axis=1)
-        return np.array([self.classes_[ind] for ind in max_inds])
+    def predict(self, X, weighted=False, **pred_params):
+        if weighted:
+            return self.predict_weighted(X, **pred_params)
+        else:
+            max_inds = np.argmax(self.predict_proba(X, **pred_params), axis=1)
+            return np.array([self.classes_[ind] for ind in max_inds])
 
     def predict_weighted(self, X, geometric=False, **pred_params):
         probs = self.predict_proba(X, **pred_params)
