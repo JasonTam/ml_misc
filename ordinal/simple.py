@@ -17,7 +17,8 @@ def fit_bin(X, y,
     :param fit_params:
     :return: new fitted estimator
     """
-    assert any([est, est_type])
+    # Todo: for some reason the ensemble models have boolean value as False
+    # assert any([est, est_type])
 
     if label_transformer:
         y = label_transformer(y)
