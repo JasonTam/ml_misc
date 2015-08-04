@@ -24,7 +24,7 @@ def fit_bin(X, y,
         y = label_transformer(y)
 
     new_est = None
-    if est:
+    if est is not None:
         new_est = clone(est)
     elif est_type:
         new_est = est_type(**est_params)
