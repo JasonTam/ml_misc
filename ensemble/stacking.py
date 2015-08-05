@@ -28,7 +28,8 @@ class Stacking(BaseEstimator, ClassifierMixin):
 
     def __init__(self, base_estimators, meta_estimator,
                  cv=3, retrain=True, one_fold=False,
-                 fit_params=None, pred_params=None):
+                 fit_params=None, pred_params=None,
+                 include_orig_feats=False):
         """
         :param base_estimators: base level 0 estimators
         :param meta_estimator: meta level 1 estimator
@@ -37,7 +38,7 @@ class Stacking(BaseEstimator, ClassifierMixin):
         :param one_fold: only use 1 fold split
         :param fit_params: predefined fit params (so we don't have to pass them in when fitting)
         :param pred_params: predefined predict params (so we don't have to pass them in when fitting)
-
+        :param include_orig_feats: include the original features for the meta estimator
         :return:
         """
         self.base_estimators = base_estimators
@@ -49,6 +50,7 @@ class Stacking(BaseEstimator, ClassifierMixin):
 
         self.fit_params = fit_params
         self.pred_params = pred_params
+        self.include_orig_feats = include_orig_feats
 
     def fit(self, X, y, **fit_params):
         # Parse params
@@ -57,6 +59,7 @@ class Stacking(BaseEstimator, ClassifierMixin):
         param_d = param_map(fit_params)
 
         holdout_base_preds = []
+        holdout_xs = []
         holdout_ys = []
         kf = KFold(n=len(y), n_folds=self.cv)
         for train_ind, holdout_ind in kf:
@@ -79,6 +82,7 @@ class Stacking(BaseEstimator, ClassifierMixin):
             # Predict hold out set with base estimators
             holdout_base_pred = np.array([est.predict(X_holdout) for est in self.base_estimators]).T
             holdout_base_preds.append(holdout_base_pred)
+            holdout_xs.append(X_holdout)
             holdout_ys.append(y_holdout)
 
             if self.one_fold:
@@ -89,7 +93,12 @@ class Stacking(BaseEstimator, ClassifierMixin):
 
         # Train meta estimator
         meta_params = param_d['meta']
-        self.meta_estimator.fit(X_base_preds, y_base_preds, **meta_params)
+        if self.include_orig_feats:
+            X_meta = np.c_[X_base_preds, np.concatenate(holdout_xs)]
+        else:
+            X_meta = X_base_preds
+        y_meta = y_base_preds
+        self.meta_estimator.fit(X_meta, y_meta, **meta_params)
 
         # Retrain the base estimators on entire set
         if self.retrain:
@@ -115,7 +124,11 @@ class Stacking(BaseEstimator, ClassifierMixin):
         base_preds = np.array(base_preds).T
 
         meta_params = param_d['meta']
-        final_pred = self.meta_estimator.predict(base_preds, **meta_params)
+        if self.include_orig_feats:
+            X_meta = np.c_[base_preds, X]
+        else:
+            X_meta = base_preds
+        final_pred = self.meta_estimator.predict(X_meta, **meta_params)
         return final_pred
 
 
@@ -132,7 +145,7 @@ if __name__ == '__main__':
 
     base_ests = [SVR(),
                  KNeighborsRegressor(n_neighbors=20),
-                 ExtraTreesRegressor(n_estimators=400),
+                 # ExtraTreesRegressor(n_estimators=400),
                  ]
     meta_est = LinearRegression()
 
@@ -142,7 +155,8 @@ if __name__ == '__main__':
     for train_ind, val_ind in kf:
         X_train, X_val = X[train_ind], X[val_ind]
         y_train, y_val = y[train_ind], y[val_ind]
-        stack = Stacking(base_ests, meta_est, cv=4)
+        stack = Stacking(base_ests, meta_est, cv=4,
+                         include_orig_feats=False)
 
         stack.fit(X_train, y_train)
 
