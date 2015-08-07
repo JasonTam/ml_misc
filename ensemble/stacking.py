@@ -1,5 +1,5 @@
-from joblib import Parallel, delayed
-import multiprocessing
+# from joblib import Parallel, delayed
+# import multiprocessing
 import numpy as np
 from sklearn.base import BaseEstimator, ClassifierMixin, clone
 from sklearn.cross_validation import KFold, StratifiedKFold
@@ -29,7 +29,9 @@ class Stacking(BaseEstimator, ClassifierMixin):
     def __init__(self, base_estimators, meta_estimator,
                  cv=3, retrain=True, one_fold=False,
                  fit_params=None, pred_params=None,
-                 include_orig_feats=False):
+                 include_orig_feats=False,
+                 use_probs=True,
+                 extra_data=None):
         """
         :param base_estimators: base level 0 estimators
         :param meta_estimator: meta level 1 estimator
@@ -39,6 +41,9 @@ class Stacking(BaseEstimator, ClassifierMixin):
         :param fit_params: predefined fit params (so we don't have to pass them in when fitting)
         :param pred_params: predefined predict params (so we don't have to pass them in when fitting)
         :param include_orig_feats: include the original features for the meta estimator
+        :param use_probs: use `predict_proba` on base models when available
+            and use these probabilities as level0 output. This is only valid if the base model is a classifier
+        :param extra_data: additional datasets or views that some base models will use
         :return:
         """
         self.base_estimators = base_estimators
@@ -51,6 +56,12 @@ class Stacking(BaseEstimator, ClassifierMixin):
         self.fit_params = fit_params
         self.pred_params = pred_params
         self.include_orig_feats = include_orig_feats
+        self.use_probs = use_probs
+
+        if extra_data:
+            self.extra_data = extra_data
+        else:
+            self.extra_data = {}
 
     def fit(self, X, y, **fit_params):
         # Parse params
@@ -62,6 +73,8 @@ class Stacking(BaseEstimator, ClassifierMixin):
         holdout_xs = []
         holdout_ys = []
         kf = KFold(n=len(y), n_folds=self.cv)
+
+        # KFold to make holdout sets for meta estimator
         for train_ind, holdout_ind in kf:
             # train_ind, holdout_ind = iter(kf).next()
             X_train, X_holdout = X[train_ind], X[holdout_ind]
@@ -69,18 +82,26 @@ class Stacking(BaseEstimator, ClassifierMixin):
 
             # Train base estimators
             for ii, est in enumerate(self.base_estimators):
-                base_params = param_d[str(ii)]
-                X_base = base_params.pop('X', X)
-                y_base = base_params.pop('y', y)
+                base_params = param_d[str(ii)].copy()
+                X_base_name = base_params.pop('X', None)
+                y_base_name = base_params.pop('y', None)
+                X_base = self.extra_data[X_base_name] if X_base_name else X
+                y_base = self.extra_data[y_base_name] if y_base_name else y
 
                 X_base_train, y_base_train = X_base[train_ind], y_base[train_ind]
 
                 est.fit(X_base_train, y_base_train, **base_params)
 
-                # est.fit(X_train, y_train)
-
             # Predict hold out set with base estimators
-            holdout_base_pred = np.array([est.predict(X_holdout) for est in self.base_estimators]).T
+            # todo: include predict params from init
+            if self.use_probs:
+                holdout_base_pred = np.concatenate(
+                    [est.predict_proba(X_holdout)
+                     if hasattr(est, 'predict_proba')
+                     else est.predict(X_holdout)[:, None]
+                     for est in self.base_estimators], axis=1)
+            else:
+                holdout_base_pred = np.array([est.predict(X_holdout) for est in self.base_estimators]).T
             holdout_base_preds.append(holdout_base_pred)
             holdout_xs.append(X_holdout)
             holdout_ys.append(y_holdout)
@@ -102,8 +123,14 @@ class Stacking(BaseEstimator, ClassifierMixin):
 
         # Retrain the base estimators on entire set
         if self.retrain:
-            for est in self.base_estimators:
-                est.fit(X, y)
+            for ii, est in enumerate(self.base_estimators):
+                base_params = param_d[str(ii)].copy()
+                X_base_name = base_params.pop('X', None)
+                y_base_name = base_params.pop('y', None)
+                X_base = self.extra_data[X_base_name] if X_base_name else X
+                y_base = self.extra_data[y_base_name] if y_base_name else y
+
+                est.fit(X_base, y_base, **base_params)
 
         return self
 
@@ -117,11 +144,17 @@ class Stacking(BaseEstimator, ClassifierMixin):
         for ii, est in enumerate(self.base_estimators):
             base_params = param_d[str(ii)]
 
-            base_pred = est.predict(X, **base_params)
+            # base_pred = est.predict(X, **base_params)
+            if self.use_probs and hasattr(est, 'predict_proba'):
+                base_pred = est.predict_proba(X, **base_params)
+            else:
+                base_pred = est.predict(X, **base_params)[:, None]
+
             base_preds.append(base_pred)
 
         # base_preds = np.array([est.predict(X) for est in self.base_estimators]).T
-        base_preds = np.array(base_preds).T
+        # base_preds = np.array(base_preds).T
+        base_preds = np.concatenate(base_preds, axis=1)
 
         meta_params = param_d['meta']
         if self.include_orig_feats:
@@ -134,18 +167,23 @@ class Stacking(BaseEstimator, ClassifierMixin):
 
 if __name__ == '__main__':
     from sklearn.metrics import mean_squared_error as mse
-    from sklearn.svm import SVR
+    from sklearn.svm import SVR, SVC
     from sklearn.linear_model import LinearRegression, Ridge, Lasso
     from sklearn.neighbors import KNeighborsRegressor
     from sklearn.ensemble import ExtraTreesRegressor
+    from sklearn.lda import LDA
 
     from sklearn.datasets import load_boston
     boston = load_boston()
     X, y = boston.data, boston.target
+    _, bins = np.histogram(y, bins=10)
+    y_binned = np.digitize(y, bins=bins)
 
-    base_ests = [SVR(),
-                 KNeighborsRegressor(n_neighbors=20),
-                 # ExtraTreesRegressor(n_estimators=400),
+    base_ests = [
+        LDA(),
+        SVR(),
+        KNeighborsRegressor(n_neighbors=20),
+        # ExtraTreesRegressor(n_estimators=400),
                  ]
     meta_est = LinearRegression()
 
@@ -155,8 +193,19 @@ if __name__ == '__main__':
     for train_ind, val_ind in kf:
         X_train, X_val = X[train_ind], X[val_ind]
         y_train, y_val = y[train_ind], y[val_ind]
+        y_binned_train, y_binned_val = y_binned[train_ind], y_binned[val_ind]
         stack = Stacking(base_ests, meta_est, cv=4,
-                         include_orig_feats=False)
+                         include_orig_feats=False,
+                         use_probs=True,
+                         fit_params={
+                             'base0_y': 'y_binned',
+                         },
+                         pred_params={
+                         },
+                         extra_data={
+                             'y_binned': y_binned_train,
+                         }
+                         )
 
         stack.fit(X_train, y_train)
 
