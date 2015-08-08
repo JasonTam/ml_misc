@@ -6,6 +6,7 @@ from sklearn.cross_validation import KFold, StratifiedKFold
 
 from collections import defaultdict
 
+
 def param_map(params):
     """
     :param params: keyed by a string in the following format:
@@ -79,7 +80,7 @@ class Stacking(BaseEstimator, ClassifierMixin):
             # train_ind, holdout_ind = iter(kf).next()
             X_train, X_holdout = X[train_ind], X[holdout_ind]
             y_train, y_holdout = y[train_ind], y[holdout_ind]
-
+            holdout_base_preds_k = []
             # Train base estimators
             for ii, est in enumerate(self.base_estimators):
                 base_params = param_d[str(ii)].copy()
@@ -92,26 +93,32 @@ class Stacking(BaseEstimator, ClassifierMixin):
 
                 est.fit(X_base_train, y_base_train, **base_params)
 
-            # Predict hold out set with base estimators
-            # todo: include predict params from init
-            if self.use_probs:
-                holdout_base_pred = np.concatenate(
-                    [est.predict_proba(X_holdout)
-                     if hasattr(est, 'predict_proba')
-                     else est.predict(X_holdout)[:, None]
-                     for est in self.base_estimators], axis=1)
-            else:
-                holdout_base_pred = np.array([est.predict(X_holdout) for est in self.base_estimators]).T
-            holdout_base_preds.append(holdout_base_pred)
+                # Predict hold out set with base estimators
+                # todo: include predict params from init
+                if self.use_probs and hasattr(est, 'predict_proba'):
+                    all_classes = list(np.unique(y_base))
+                    base_pred_raw = est.predict_proba(X_holdout)
+                    base_pred = np.zeros((len(base_pred_raw),
+                                          len(all_classes)))
+                    for pred, c in zip(base_pred_raw.T, est.classes_):
+                        base_pred[:, all_classes.index(c)] = pred
+                else:
+                    base_pred = est.predict(X_holdout)[:, None]
+
+                holdout_base_preds_k.append(base_pred)
+
+            holdout_base_preds.append(
+                np.concatenate(holdout_base_preds_k, axis=1))
+
             holdout_xs.append(X_holdout)
             holdout_ys.append(y_holdout)
-
             if self.one_fold:
                 break
 
         X_base_preds = np.concatenate(holdout_base_preds)
         y_base_preds = np.concatenate(holdout_ys)
 
+        # --------------------[Meta Level]----------------------
         # Train meta estimator
         meta_params = param_d['meta']
         if self.include_orig_feats:
@@ -214,7 +221,8 @@ if __name__ == '__main__':
         print score
         scores.append(score)
 
-        q = ExtraTreesRegressor(n_estimators=400)
+        # q = ExtraTreesRegressor(n_estimators=400)
+        q = LinearRegression()
         q.fit(X_train, y_train)
         scores_baseline.append(mse(y_val, q.predict(X_val)))
 
