@@ -1,29 +1,33 @@
-from rpforest import RPForest
+from annoy import AnnoyIndex
 import numpy as np
 from sklearn.base import BaseEstimator, ClassifierMixin, clone
 
 
 
-class rpfnn(BaseEstimator, ClassifierMixin):
-    def __init__(self, leaf_size=50, no_trees=10, num_neighbors=10):
+class ann(BaseEstimator, ClassifierMixin):
+    def __init__(self, no_trees=10, search_k=-1, num_neighbors=10,
+                 metric='angular'):
         self.model = None
         self.y = None
 
-        self.leaf_size = leaf_size
+        self.search_k = search_k
         self.no_trees = no_trees
         self.num_neighbors = num_neighbors
+        self.metric = metric
 
     def fit(self, X, y, **fit_params):
-        # Make the model here because Gridsearch is weird
-        self.model = RPForest(leaf_size=self.leaf_size,
-                              no_trees=self.no_trees)
+        f = X.shape[1]
+        self.model = AnnoyIndex(f, metric=self.metric)
+        for ii, x_i in enumerate(X):
+            self.model.add_item(ii, x_i)
 
-        self.model.fit(X)
+        self.model.build(self.no_trees)
+
         self.y = y
 
         return self
 
-    def predict(self, X, number=None, **pred_params):
+    def predict(self, X, number=None, search_k=None, **pred_params):
         X = np.array(X)
         if len(X.shape) == 1:
             X = X[None, :]
@@ -31,11 +35,15 @@ class rpfnn(BaseEstimator, ClassifierMixin):
         if number is None:
             number = self.num_neighbors
 
-        ret = np.array([self.predict1(X_i, number) for X_i in X])
+        if search_k is None:
+            search_k = self.search_k
+
+        ret = np.array([self.predict1(X_i, number, search_k)
+                        for X_i in X])
         return ret
 
-    def predict1(self, X, number):
-        q = self.model.query(X, number)
+    def predict1(self, X, number, search_k, include_distances=False):
+        q = self.model.get_nns_by_vector(X, number, search_k, include_distances)
         y_q = [self.y[q_i] for q_i in q]
 
         return np.mean(y_q)
@@ -58,7 +66,7 @@ if __name__ == '__main__':
     _, bins = np.histogram(y, bins=10)
     y_binned = np.digitize(y, bins=bins)
 
-    clf = rpfnn(num_neighbors=50)
+    clf = ann(num_neighbors=50)
 
     scores_baseline = []
     scores = []
