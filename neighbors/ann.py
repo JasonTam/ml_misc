@@ -6,7 +6,7 @@ from sklearn.base import BaseEstimator, ClassifierMixin, clone
 
 class ann(BaseEstimator, ClassifierMixin):
     def __init__(self, no_trees=10, search_k=-1, num_neighbors=10,
-                 metric='angular'):
+                 metric='angular', weights='uniform'):
         self.model = None
         self.y = None
 
@@ -14,6 +14,7 @@ class ann(BaseEstimator, ClassifierMixin):
         self.no_trees = no_trees
         self.num_neighbors = num_neighbors
         self.metric = metric
+        self.weights = weights
 
     def fit(self, X, y, **fit_params):
         f = X.shape[1]
@@ -42,11 +43,19 @@ class ann(BaseEstimator, ClassifierMixin):
                         for X_i in X])
         return ret
 
-    def predict1(self, X, number, search_k, include_distances=False):
-        q = self.model.get_nns_by_vector(X, number, search_k, include_distances)
+    def predict1(self, X, number, search_k):
+        if self.weights == 'distance':
+            include_distances = True
+            q, d = self.model.get_nns_by_vector(X, number, search_k, include_distances)
+            d = np.array(d)
+            w = (1/d) / np.sum(1/d)
+        else:
+            include_distances = False
+            q = self.model.get_nns_by_vector(X, number, search_k, include_distances)
+            w = np.ones(len(q)) / float(len(q))
         y_q = [self.y[q_i] for q_i in q]
 
-        return np.mean(y_q)
+        return np.dot(y_q, w)
 
 
 if __name__ == '__main__':
@@ -66,7 +75,7 @@ if __name__ == '__main__':
     _, bins = np.histogram(y, bins=10)
     y_binned = np.digitize(y, bins=bins)
 
-    clf = ann(num_neighbors=50)
+    clf = ann(num_neighbors=50, weights='distance')
 
     scores_baseline = []
     scores = []
