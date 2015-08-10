@@ -12,11 +12,6 @@ class rpfnn(BaseEstimator, ClassifierMixin):
         self.num_neighbors = num_neighbors
 
     def fit(self, X, y, **fit_params):
-        if self.model:
-            try:
-                self.model.trees = []
-            except Exception:
-                pass
         self.model.fit(X)
         self.y = y
 
