@@ -10,6 +10,11 @@ class rpfnn(BaseEstimator, ClassifierMixin):
         self.y = None
 
     def fit(self, X, y, **fit_params):
+        if self.model:
+            try:
+                self.model.trees = []
+            except Exception:
+                pass
         self.model.fit(X)
         self.y = y
 
@@ -43,6 +48,8 @@ if __name__ == '__main__':
     _, bins = np.histogram(y, bins=10)
     y_binned = np.digitize(y, bins=bins)
 
+    clf = rpfnn()
+
     scores_baseline = []
     scores = []
     kf = KFold(len(y), n_folds=4)
@@ -50,7 +57,6 @@ if __name__ == '__main__':
         X_train, X_val = X[train_ind], X[val_ind]
         y_train, y_val = y[train_ind], y[val_ind]
 
-        clf = rpfnn()
         clf.fit(X_train, y_train)
 
         y_pred = clf.predict(X_val)
