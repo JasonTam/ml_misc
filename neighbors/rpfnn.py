@@ -6,12 +6,18 @@ from sklearn.base import BaseEstimator, ClassifierMixin, clone
 
 class rpfnn(BaseEstimator, ClassifierMixin):
     def __init__(self, leaf_size=50, no_trees=10, num_neighbors=10):
-        self.model = RPForest(leaf_size, no_trees)
+        self.model = None
         self.y = None
 
+        self.leaf_size = leaf_size
+        self.no_trees = no_trees
         self.num_neighbors = num_neighbors
 
     def fit(self, X, y, **fit_params):
+        # Make the model here because Gridsearch is weird
+        self.model = RPForest(leaf_size=self.leaf_size,
+                              no_trees=self.no_trees)
+
         self.model.fit(X)
         self.y = y
 
