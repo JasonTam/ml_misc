@@ -54,7 +54,7 @@ if __name__ == '__main__':
     _, bins = np.histogram(y, bins=10)
     y_binned = np.digitize(y, bins=bins)
 
-    clf = rpfnn()
+    clf = rpfnn(num_neighbors=50)
 
     scores_baseline = []
     scores = []
@@ -71,11 +71,11 @@ if __name__ == '__main__':
         scores.append(score)
 
         # q = ExtraTreesRegressor(n_estimators=400)
-        q = LinearRegression()
+        q = KNeighborsRegressor(n_neighbors=50)
         q.fit(X_train, y_train)
         scores_baseline.append(mse(y_val, q.predict(X_val)))
 
     print
     print 'Scores \t\t\t', np.mean(scores)
-    print 'ET baseline \t', np.mean(scores_baseline)
+    print 'KNN baseline \t', np.mean(scores_baseline)
 
