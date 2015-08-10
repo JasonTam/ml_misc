@@ -5,9 +5,11 @@ from sklearn.base import BaseEstimator, ClassifierMixin, clone
 
 
 class rpfnn(BaseEstimator, ClassifierMixin):
-    def __init__(self, leaf_size=50, no_trees=10):
+    def __init__(self, leaf_size=50, no_trees=10, num_neighbors=10):
         self.model = RPForest(leaf_size, no_trees)
         self.y = None
+
+        self.num_neighbors = num_neighbors
 
     def fit(self, X, y, **fit_params):
         if self.model:
@@ -18,10 +20,13 @@ class rpfnn(BaseEstimator, ClassifierMixin):
         self.model.fit(X)
         self.y = y
 
-    def predict(self, X, number=10, **pred_params):
+    def predict(self, X, number=None, **pred_params):
         X = np.array(X)
         if len(X.shape) == 1:
             X = X[:, None]
+
+        if number is None:
+            number = self.num_neighbors
 
         ret = np.array([self.predict1(X_i, number) for X_i in X])
         return ret
