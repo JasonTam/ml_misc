@@ -111,6 +111,7 @@ class Stacking(BaseEstimator, ClassifierMixin):
                 y_base = self.extra_data[y_base_name] if y_base_name else y
 
                 X_base_train, y_base_train = X_base[train_ind], y_base[train_ind]
+                X_base_holdout, y_base_holdout = X_base[holdout_ind], y_base[holdout_ind]
 
                 if X_base_name:
                     self.log.debug('\tX data: %s' % X_base_name)
@@ -128,7 +129,7 @@ class Stacking(BaseEstimator, ClassifierMixin):
                 tic = time.time()
                 if self.use_probs and hasattr(est, 'predict_proba'):
                     all_classes = list(np.unique(y_base))
-                    base_pred_raw = est.predict_proba(X_holdout)
+                    base_pred_raw = est.predict_proba(X_base_holdout)
                     toc = time.time() - tic
                     base_pred = np.zeros((len(base_pred_raw),
                                           len(all_classes)))
@@ -137,7 +138,7 @@ class Stacking(BaseEstimator, ClassifierMixin):
 
                     self.log.debug('\tTime predict_proba:\t%g s' % toc)
                 else:
-                    base_pred = est.predict(X_holdout)[:, None]
+                    base_pred = est.predict(X_base_holdout)[:, None]
                     toc = time.time() - tic
 
                     self.log.debug('\tTime predict:\t\t%g s' % toc)
@@ -187,18 +188,19 @@ class Stacking(BaseEstimator, ClassifierMixin):
 
         base_preds = []
         for ii, est in enumerate(self.base_estimators):
-            base_params = param_d[str(ii)]
+            # Setup special params & datasets
+            base_params = param_d[str(ii)].copy()
+            X_base_name = base_params.pop('X', None)
+            X_base = self.extra_data[X_base_name] if X_base_name else X
 
             # base_pred = est.predict(X, **base_params)
             if self.use_probs and hasattr(est, 'predict_proba'):
-                base_pred = est.predict_proba(X, **base_params)
+                base_pred = est.predict_proba(X_base, **base_params)
             else:
-                base_pred = est.predict(X, **base_params)[:, None]
+                base_pred = est.predict(X_base, **base_params)[:, None]
 
             base_preds.append(base_pred)
 
-        # base_preds = np.array([est.predict(X) for est in self.base_estimators]).T
-        # base_preds = np.array(base_preds).T
         base_preds = np.concatenate(base_preds, axis=1)
 
         meta_params = param_d['meta']
@@ -244,11 +246,15 @@ if __name__ == '__main__':
                          use_probs=True,
                          fit_params={
                              'base0_y': 'y_binned',
+                             'base2_X': 'X03_train',
                          },
                          pred_params={
+                             'base2_X': 'X03_val',
                          },
                          extra_data={
                              'y_binned': y_binned_train,
+                             'X03_train': X_train[:, 0:3],
+                             'X03_val': X_val[:, 0:3],
                          },
                          verbose=True
                          )
