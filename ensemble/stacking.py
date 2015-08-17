@@ -6,6 +6,9 @@ from sklearn.cross_validation import KFold, StratifiedKFold
 
 from collections import defaultdict
 
+import time
+import logging
+import sys
 
 def param_map(params):
     """
@@ -32,7 +35,8 @@ class Stacking(BaseEstimator, ClassifierMixin):
                  fit_params=None, pred_params=None,
                  include_orig_feats=False,
                  use_probs=True,
-                 extra_data=None):
+                 extra_data=None,
+                 verbose=0):
         """
         :param base_estimators: base level 0 estimators
         :param meta_estimator: meta level 1 estimator
@@ -45,8 +49,17 @@ class Stacking(BaseEstimator, ClassifierMixin):
         :param use_probs: use `predict_proba` on base models when available
             and use these probabilities as level0 output. This is only valid if the base model is a classifier
         :param extra_data: additional datasets or views that some base models will use
+        :param verbose: verbose logging
         :return:
         """
+        self.log = logging.getLogger('stacker')
+        if verbose:
+            self.log.setLevel(logging.DEBUG)
+            self.log.info('Stacker Init')
+            if not self.log.handlers:
+                handler = logging.StreamHandler(sys.stdout)
+                self.log.addHandler(handler)
+
         self.base_estimators = base_estimators
         self.meta_estimator = meta_estimator
         self.cv = cv
@@ -61,6 +74,8 @@ class Stacking(BaseEstimator, ClassifierMixin):
 
         if extra_data:
             self.extra_data = extra_data
+            self.log.debug('Extra Data: %s' %
+                           str(self.extra_data.keys()))
         else:
             self.extra_data = {}
 
@@ -76,13 +91,19 @@ class Stacking(BaseEstimator, ClassifierMixin):
         kf = KFold(n=len(y), n_folds=self.cv)
 
         # KFold to make holdout sets for meta estimator
-        for train_ind, holdout_ind in kf:
+        for k_i, (train_ind, holdout_ind) in enumerate(kf):
+            self.log.debug('===[Fit & predict fold %d for base models]===' % k_i)
+
             # train_ind, holdout_ind = iter(kf).next()
             X_train, X_holdout = X[train_ind], X[holdout_ind]
             y_train, y_holdout = y[train_ind], y[holdout_ind]
             holdout_base_preds_k = []
             # Train base estimators
             for ii, est in enumerate(self.base_estimators):
+                est_name = str(est).split('(')[0]
+                self.log.debug('[%s]' % est_name)
+
+                # Setup special params & datasets
                 base_params = param_d[str(ii)].copy()
                 X_base_name = base_params.pop('X', None)
                 y_base_name = base_params.pop('y', None)
@@ -91,19 +112,35 @@ class Stacking(BaseEstimator, ClassifierMixin):
 
                 X_base_train, y_base_train = X_base[train_ind], y_base[train_ind]
 
+                if X_base_name:
+                    self.log.debug('\tX data: %s' % X_base_name)
+                if y_base_name:
+                    self.log.debug('\ty data: %s' % y_base_name)
+
+                # Fit base model
+                tic = time.time()
                 est.fit(X_base_train, y_base_train, **base_params)
+                toc = time.time() - tic
+                self.log.debug('\tTime fit:\t\t%g s' % toc)
 
                 # Predict hold out set with base estimators
                 # todo: include predict params from init
+                tic = time.time()
                 if self.use_probs and hasattr(est, 'predict_proba'):
                     all_classes = list(np.unique(y_base))
                     base_pred_raw = est.predict_proba(X_holdout)
+                    toc = time.time() - tic
                     base_pred = np.zeros((len(base_pred_raw),
                                           len(all_classes)))
                     for pred, c in zip(base_pred_raw.T, est.classes_):
                         base_pred[:, all_classes.index(c)] = pred
+
+                    self.log.debug('\tTime predict_proba:\t%g s' % toc)
                 else:
                     base_pred = est.predict(X_holdout)[:, None]
+                    toc = time.time() - tic
+
+                    self.log.debug('\tTime predict:\t\t%g s' % toc)
 
                 holdout_base_preds_k.append(base_pred)
 
@@ -130,6 +167,7 @@ class Stacking(BaseEstimator, ClassifierMixin):
 
         # Retrain the base estimators on entire set
         if self.retrain:
+            self.log.debug('Retraining base models on all data')
             for ii, est in enumerate(self.base_estimators):
                 base_params = param_d[str(ii)].copy()
                 X_base_name = base_params.pop('X', None)
@@ -211,14 +249,15 @@ if __name__ == '__main__':
                          },
                          extra_data={
                              'y_binned': y_binned_train,
-                         }
+                         },
+                         verbose=True
                          )
 
         stack.fit(X_train, y_train)
 
         y_pred = stack.predict(X_val)
         score = mse(y_val, y_pred)
-        print score
+        print 'MSE:', score
         scores.append(score)
 
         # q = ExtraTreesRegressor(n_estimators=400)
