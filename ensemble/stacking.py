@@ -13,15 +13,22 @@ import sys
 def param_map(params):
     """
     :param params: keyed by a string in the following format:
-        base#_paramname or meta_paramname
+        base#_method_paramname or meta_method_paramname
         # is the index of the base estimator
+        method is either `fit` or `predict`
+        or, for datasets, base#_X or base#_y
     :return:
     """
-    split_d = defaultdict(lambda: {})
+    split_d = defaultdict(lambda: {'fit': {}, 'predict': {}})
     for k, v in params.items():
         ind, param_name = k.split('_', 1)
         ind = ind.replace('base', '')
-        split_d[ind][param_name] = v
+        if 'fit_' in param_name:
+            split_d[ind]['fit'][param_name.split('fit_')[-1]] = v
+        elif 'predict_' in param_name:
+            split_d[ind]['predict'][param_name.split('predict_')[-1]] = v
+        else:
+            split_d[ind][param_name] = v
     return split_d
 
 
@@ -120,7 +127,7 @@ class Stacking(BaseEstimator, ClassifierMixin):
 
                 # Fit base model
                 tic = time.time()
-                est.fit(X_base_train, y_base_train, **base_params)
+                est.fit(X_base_train, y_base_train, **base_params['fit'])
                 toc = time.time() - tic
                 self.log.debug('\tTime fit:\t\t%g s' % toc)
 
@@ -129,7 +136,7 @@ class Stacking(BaseEstimator, ClassifierMixin):
                 tic = time.time()
                 if self.use_probs and hasattr(est, 'predict_proba'):
                     all_classes = list(np.unique(y_base))
-                    base_pred_raw = est.predict_proba(X_base_holdout)
+                    base_pred_raw = est.predict_proba(X_base_holdout, **base_params['predict'])
                     toc = time.time() - tic
                     base_pred = np.zeros((len(base_pred_raw),
                                           len(all_classes)))
@@ -138,7 +145,7 @@ class Stacking(BaseEstimator, ClassifierMixin):
 
                     self.log.debug('\tTime predict_proba:\t%g s' % toc)
                 else:
-                    base_pred = est.predict(X_base_holdout)[:, None]
+                    base_pred = est.predict(X_base_holdout, **base_params['predict'])[:, None]
                     toc = time.time() - tic
 
                     self.log.debug('\tTime predict:\t\t%g s' % toc)
@@ -164,7 +171,7 @@ class Stacking(BaseEstimator, ClassifierMixin):
         else:
             X_meta = X_base_preds
         y_meta = y_base_preds
-        self.meta_estimator.fit(X_meta, y_meta, **meta_params)
+        self.meta_estimator.fit(X_meta, y_meta, **meta_params['fit'])
 
         # Retrain the base estimators on entire set
         if self.retrain:
@@ -176,7 +183,7 @@ class Stacking(BaseEstimator, ClassifierMixin):
                 X_base = self.extra_data[X_base_name] if X_base_name else X
                 y_base = self.extra_data[y_base_name] if y_base_name else y
 
-                est.fit(X_base, y_base, **base_params)
+                est.fit(X_base, y_base, **base_params['fit'])
 
         return self
 
@@ -195,9 +202,9 @@ class Stacking(BaseEstimator, ClassifierMixin):
 
             # base_pred = est.predict(X, **base_params)
             if self.use_probs and hasattr(est, 'predict_proba'):
-                base_pred = est.predict_proba(X_base, **base_params)
+                base_pred = est.predict_proba(X_base, **base_params['predict'])
             else:
-                base_pred = est.predict(X_base, **base_params)[:, None]
+                base_pred = est.predict(X_base, **base_params['predict'])[:, None]
 
             base_preds.append(base_pred)
 
@@ -208,7 +215,7 @@ class Stacking(BaseEstimator, ClassifierMixin):
             X_meta = np.c_[base_preds, X]
         else:
             X_meta = base_preds
-        final_pred = self.meta_estimator.predict(X_meta, **meta_params)
+        final_pred = self.meta_estimator.predict(X_meta, **meta_params['predict'])
         return final_pred
 
 
@@ -245,6 +252,7 @@ if __name__ == '__main__':
                          include_orig_feats=False,
                          use_probs=True,
                          fit_params={
+                             'base0_fit_tol': 1e-10,
                              'base0_y': 'y_binned',
                              'base2_X': 'X03_train',
                          },
