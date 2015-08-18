@@ -134,7 +134,19 @@ class Stacking(BaseEstimator, ClassifierMixin):
                 # Predict hold out set with base estimators
                 # todo: include predict params from init
                 tic = time.time()
-                if self.use_probs and hasattr(est, 'predict_proba'):
+
+                # Stupid stuff cuz keras wrapper doesnt comply with standards
+                keras_reg_flag = False
+                try:
+                    keras_reg_flag = est.config_['layers'][-1]['output_dim'] == 1
+                except (AttributeError, KeyError) as e:
+                    pass
+
+                if keras_reg_flag:
+                    base_pred = np.squeeze(est.predict_proba(X_base_holdout, **base_params['predict'])[:, None])
+                    toc = time.time() - tic
+                    self.log.debug('\tTime predict_proba (keras):\t%g s' % toc)
+                elif self.use_probs and hasattr(est, 'predict_proba'):
                     all_classes = list(np.unique(y_base))
                     base_pred_raw = est.predict_proba(X_base_holdout, **base_params['predict'])
                     toc = time.time() - tic
