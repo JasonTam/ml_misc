@@ -143,7 +143,7 @@ class Stacking(BaseEstimator, ClassifierMixin):
                     pass
 
                 if keras_reg_flag:
-                    base_pred = np.squeeze(est.predict_proba(X_base_holdout, **base_params['predict'])[:, None])
+                    base_pred = est.predict_proba(X_base_holdout, **base_params['predict'])
                     toc = time.time() - tic
                     self.log.debug('\tTime predict_proba (keras):\t%g s' % toc)
                 elif self.use_probs and hasattr(est, 'predict_proba'):
