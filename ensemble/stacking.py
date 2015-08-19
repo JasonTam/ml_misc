@@ -43,7 +43,9 @@ class Stacking(BaseEstimator, ClassifierMixin):
                  include_orig_feats=False,
                  use_probs=True,
                  extra_data=None,
-                 verbose=0):
+                 verbose=0,
+                 log_handler=None,
+                 save_level0_out=False):
         """
         :param base_estimators: base level 0 estimators
         :param meta_estimator: meta level 1 estimator
@@ -57,15 +59,18 @@ class Stacking(BaseEstimator, ClassifierMixin):
             and use these probabilities as level0 output. This is only valid if the base model is a classifier
         :param extra_data: additional datasets or views that some base models will use
         :param verbose: verbose logging
+        :param log_handler: custom log handler can be passed in
+        :param save_level0_out: save the base preds and holdout targets
         :return:
         """
         self.log = logging.getLogger('stacker')
         if verbose:
             self.log.setLevel(logging.DEBUG)
             self.log.info('Stacker Init')
-            if not self.log.handlers:
-                handler = logging.StreamHandler(sys.stdout)
-                self.log.addHandler(handler)
+            if not self.log.handlers and log_handler:
+                # pass
+                # log_handler = logging.StreamHandler(sys.stdout)
+                self.log.addHandler(log_handler)
 
         self.base_estimators = base_estimators
         self.meta_estimator = meta_estimator
@@ -85,6 +90,9 @@ class Stacking(BaseEstimator, ClassifierMixin):
                            str(self.extra_data.keys()))
         else:
             self.extra_data = {}
+
+        self.save_level0_out = save_level0_out
+        self.level0_out = None
 
     def fit(self, X, y, **fit_params):
         # Parse params
@@ -174,6 +182,9 @@ class Stacking(BaseEstimator, ClassifierMixin):
 
         X_base_preds = np.concatenate(holdout_base_preds)
         y_base_preds = np.concatenate(holdout_ys)
+
+        if self.save_level0_out:
+            self.level0_out = (X_base_preds, y_base_preds)
 
         # --------------------[Meta Level]----------------------
         # Train meta estimator
@@ -276,7 +287,9 @@ if __name__ == '__main__':
                              'X03_train': X_train[:, 0:3],
                              'X03_val': X_val[:, 0:3],
                          },
-                         verbose=True
+                         verbose=True,
+                         log_handler=logging.StreamHandler(sys.stdout),
+                         save_level0_out=True,
                          )
 
         stack.fit(X_train, y_train)
