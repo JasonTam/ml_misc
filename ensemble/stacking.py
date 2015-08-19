@@ -271,7 +271,7 @@ if __name__ == '__main__':
         X_train, X_val = X[train_ind], X[val_ind]
         y_train, y_val = y[train_ind], y[val_ind]
         y_binned_train, y_binned_val = y_binned[train_ind], y_binned[val_ind]
-        stack = Stacking(base_ests, meta_est, cv=4,
+        stack = Stacking(base_ests, meta_est, cv=8,
                          include_orig_feats=False,
                          use_probs=True,
                          fit_params={
@@ -305,5 +305,6 @@ if __name__ == '__main__':
         scores_baseline.append(mse(y_val, q.predict(X_val)))
 
     print
-    print 'Scores \t\t\t', np.mean(scores)
+    print 'Score mean \t\t\t', np.mean(scores)
+    print 'Score std \t\t\t', np.std(scores)
     print 'ET baseline \t', np.mean(scores_baseline)
