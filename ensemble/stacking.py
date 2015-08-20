@@ -46,6 +46,7 @@ class Stacking(BaseEstimator, ClassifierMixin):
                  verbose=0,
                  log_handler=None,
                  save_level0_out=False):
+        # todo: if a tuple if given for extradata, concatenate the datasets
         """
         :param base_estimators: base level 0 estimators
         :param meta_estimator: meta level 1 estimator
@@ -94,6 +95,13 @@ class Stacking(BaseEstimator, ClassifierMixin):
         self.save_level0_out = save_level0_out
         self.level0_out = None
 
+    def get_base_data(self, var, var_str, base_params):
+        var_base_name = base_params.pop(var_str, None)
+        var_base = self.extra_data[var_base_name] if var_base_name else var
+        if var_base_name:
+            self.log.debug('\t%s data: %s' % (var_str, var_base_name))
+        return var_base
+
     def fit(self, X, y, **fit_params):
         # Parse params
         if not len(fit_params) and self.fit_params:
@@ -120,18 +128,11 @@ class Stacking(BaseEstimator, ClassifierMixin):
 
                 # Setup special params & datasets
                 base_params = param_d[str(ii)].copy()
-                X_base_name = base_params.pop('X', None)
-                y_base_name = base_params.pop('y', None)
-                X_base = self.extra_data[X_base_name] if X_base_name else X
-                y_base = self.extra_data[y_base_name] if y_base_name else y
+                X_base = self.get_base_data(X, 'X', base_params)
+                y_base = self.get_base_data(y, 'y', base_params)
 
                 X_base_train, y_base_train = X_base[train_ind], y_base[train_ind]
                 X_base_holdout, y_base_holdout = X_base[holdout_ind], y_base[holdout_ind]
-
-                if X_base_name:
-                    self.log.debug('\tX data: %s' % X_base_name)
-                if y_base_name:
-                    self.log.debug('\ty data: %s' % y_base_name)
 
                 # Fit base model
                 tic = time.time()
@@ -201,10 +202,8 @@ class Stacking(BaseEstimator, ClassifierMixin):
             self.log.debug('Retraining base models on all data')
             for ii, est in enumerate(self.base_estimators):
                 base_params = param_d[str(ii)].copy()
-                X_base_name = base_params.pop('X', None)
-                y_base_name = base_params.pop('y', None)
-                X_base = self.extra_data[X_base_name] if X_base_name else X
-                y_base = self.extra_data[y_base_name] if y_base_name else y
+                X_base = self.get_base_data(X, 'X', base_params)
+                y_base = self.get_base_data(y, 'y', base_params)
 
                 est.fit(X_base, y_base, **base_params['fit'])
 
@@ -220,8 +219,7 @@ class Stacking(BaseEstimator, ClassifierMixin):
         for ii, est in enumerate(self.base_estimators):
             # Setup special params & datasets
             base_params = param_d[str(ii)].copy()
-            X_base_name = base_params.pop('X', None)
-            X_base = self.extra_data[X_base_name] if X_base_name else X
+            X_base = self.get_base_data(X, 'X', base_params)
 
             # base_pred = est.predict(X, **base_params)
             if self.use_probs and hasattr(est, 'predict_proba'):
