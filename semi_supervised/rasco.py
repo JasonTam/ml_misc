@@ -1,6 +1,13 @@
 import numpy as np
+from sklearn.base import BaseEstimator, ClassifierMixin, clone
+import itertools
+from sklearn.neighbors import KNeighborsRegressor
+from sklearn.linear_model import LinearRegression, LogisticRegression, ElasticNet
+from sklearn.ensemble import ExtraTreesRegressor
+from sklearn.svm import SVR
 
-
+from time import time
+import sys
 
 def shuffle_unison(a, b):
     """ Shuffles same-length arrays `a` and `b` in unison"""
@@ -20,6 +27,90 @@ def get_transfer_inds(U_preds, tfer_threshs, tfer_weights):
     print U_pred_avg.max(axis=0)
     return inds, U_y_pred
 
+
+
+class Rasco(BaseEstimator, ClassifierMixin):
+    """ A Random Subspace Method for Co-Training
+    Ref:
+        Wang, Jiao, Si-wei Luo, and Xian-hua Zeng.
+        "A random subspace method for co-training."
+        Neural Networks, 2008. IJCNN 2008.
+        (IEEE World Congress on Computational Intelligence).
+        IEEE International Joint Conference on. IEEE, 2008.
+    """
+
+    def __init__(self, h=None, n_features=1.0, n_estimators=8, max_iters=20,
+                 bootstrap=False,
+                 verbose=False):
+        # todo: immutable arguments please
+        """
+        :param h: base estimator
+        :param max_iters: max number of iterations
+        :param n_estimators: number of sub classifiers to use
+        :param n_features: ratio of features to use per subspace
+        :param bootstrap: Iterable of bootstrap resample `n` sample values to use
+            per model. If `False`, don't bootstrap
+        :param verbose: verbosity (print timings etc)
+        """
+        self.verbose = verbose
+
+        self.n_features = n_features
+        self.n_estimators = n_estimators
+        self.max_iters = max_iters
+
+        self.bootstrap = bootstrap
+
+
+
+    def fit_init(self, X, y):
+        pass
+
+    def fit_iter(self):
+        pass
+
+    def transfer_obs(self, transfers):
+        pass
+
+        return len(inds_remove)
+
+    def fit(self, X, y):
+        """
+        Unlabeled observations should have target value of NaN
+        """
+        # Setting up data
+        self.fit_init(X, y)
+
+        # Begin actual training
+        start = time()
+        for t in range(self.max_iters):
+            print 'Iter %d' % t
+            tic = time()
+
+            ret = self.fit_iter()
+
+            if ret:
+                # Replenish U_p
+                # screw it
+                pass
+            else:
+                break
+
+            toc = np.round(time() - tic, 2)
+            if self.verbose:
+                print 'Iteration time:', toc
+                sys.stdout.flush()
+
+        end = time() - start
+        if self.verbose:
+            print 'Total time:', end
+
+    def predict(self, X):
+        return np.mean([h.predict(X) for h in self.h], axis=0)
+
+
+
+sub_sps = [np.random.permutation(n_feats)[:m]
+               for k in range(K)]
 
 score_list = []
 score_fn = roc_auc_score
