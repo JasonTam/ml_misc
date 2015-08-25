@@ -2,6 +2,7 @@ import numpy as np
 from sklearn.base import BaseEstimator, ClassifierMixin, clone
 import itertools
 from sklearn.base import clone
+from sklearn.tree import DecisionTreeClassifier
 import logging
 
 from time import time
@@ -75,8 +76,10 @@ class Rasco(BaseEstimator, ClassifierMixin):
         self.X_U = None
         self.y_L = None
         self.classes_ = None
+        self.h = h
 
-        self.estimators = [clone(h) for _ in range(self.n_estimators)]
+        # self.estimators = [clone(h) for _ in range(self.n_estimators)]
+        # self.estimators = None
 
     def get_transfers(self, preds):
         """
@@ -95,6 +98,7 @@ class Rasco(BaseEstimator, ClassifierMixin):
             np.r_[self.y_L, y_tfer],)
 
     def fit_init(self, X, y):
+        self.estimators = [clone(h) for _ in range(self.n_estimators)]
         n_feats = X.shape[1]
         self.n_feats_subsp = self.feat_ratio * n_feats
         self.sub_sps_inds = [np.random.permutation(n_feats)[:self.n_feats_subsp]
