@@ -80,6 +80,7 @@ class SimpleOrdinalClassifier(BaseEstimator, ClassifierMixin):
             for cut in sorted(self.classes_)[:-1]:
                 y_bin = (y > cut).astype(float)
                 y_bin[np.isnan(y)] = np.nan
+                c_bins.append(y_bin)
         else:
             c_bins = [y > cut for cut in sorted(self.classes_)[:-1]]
 
