@@ -79,7 +79,7 @@ class Rasco(BaseEstimator, ClassifierMixin):
         self.h = h
 
         # self.estimators = [clone(h) for _ in range(self.n_estimators)]
-        # self.estimators = None
+        self.estimators = None
 
     def get_transfers(self, preds):
         """
