@@ -88,6 +88,7 @@ class Rasco(BaseEstimator, ClassifierMixin):
         preds_avg = np.mean(preds, axis=0)
         y_preds = np.argmax(preds_avg, axis=1)
         ind = np.argmax(np.max(preds_avg, axis=1), 0)
+        self.log.debug('Best candidate prob: %g' % np.max(np.max(preds_avg, axis=1), 0))
         return [ind], y_preds[ind]
 
     def transfer(self, tfer_inds, y_tfer):
@@ -134,7 +135,6 @@ class Rasco(BaseEstimator, ClassifierMixin):
         # Begin actual training
         start = time()
         for j in range(self.max_iters):
-            self.log.debug('Iter %d' % j)
             tic = time()
 
             ret = self.fit_iter()
@@ -145,7 +145,7 @@ class Rasco(BaseEstimator, ClassifierMixin):
                 break
 
             toc = time() - tic
-            self.log.debug('Iter time: %g' % toc)
+            self.log.debug('Iter #%d time: %g' % (j, toc))
 
         end = time() - start
         self.log.debug('Total time: %g' % end)
