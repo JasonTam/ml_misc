@@ -164,6 +164,8 @@ class Rasco(BaseEstimator, ClassifierMixin):
         end = time() - start
         self.log.debug('Total time: %g' % end)
 
+        return self
+
     def predict_proba(self, X):
         return np.mean([est.predict_proba(X[:, sub_sp])
                         for sub_sp, est in zip(self.sub_sps_inds, self.estimators)],
