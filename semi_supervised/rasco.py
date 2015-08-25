@@ -5,15 +5,18 @@ from sklearn.neighbors import KNeighborsRegressor
 from sklearn.linear_model import LinearRegression, LogisticRegression, ElasticNet
 from sklearn.ensemble import ExtraTreesRegressor
 from sklearn.svm import SVR
+from sklearn.base import clone
 
 from time import time
 import sys
+
 
 def shuffle_unison(a, b):
     """ Shuffles same-length arrays `a` and `b` in unison"""
     c = np.c_[a.reshape(len(a), -1), b.reshape(len(b), -1)]
     np.random.shuffle(c)
     return c[:, :a.size//len(a)].reshape(a.shape), c[:, a.size//len(a):].reshape(b.shape)
+
 
 def get_transfer_inds(U_preds, tfer_threshs, tfer_weights):
     U_pred_avg = np.array(U_preds).mean(axis=0)  # Ensemble of base preds
@@ -28,9 +31,9 @@ def get_transfer_inds(U_preds, tfer_threshs, tfer_weights):
     return inds, U_y_pred
 
 
-
 class Rasco(BaseEstimator, ClassifierMixin):
     """ A Random Subspace Method for Co-Training
+        A semi-supervised model for binary classification
     Ref:
         Wang, Jiao, Si-wei Luo, and Xian-hua Zeng.
         "A random subspace method for co-training."
@@ -39,7 +42,7 @@ class Rasco(BaseEstimator, ClassifierMixin):
         IEEE International Joint Conference on. IEEE, 2008.
     """
 
-    def __init__(self, h=None, n_features=1.0, n_estimators=8, max_iters=20,
+    def __init__(self, h=None, feat_ratio, n_estimators=8, max_iters=20,
                  bootstrap=False,
                  verbose=False):
         # todo: immutable arguments please
@@ -47,31 +50,52 @@ class Rasco(BaseEstimator, ClassifierMixin):
         :param h: base estimator
         :param max_iters: max number of iterations
         :param n_estimators: number of sub classifiers to use
-        :param n_features: ratio of features to use per subspace
+        :param feat_ratio: ratio of features to use per subspace
         :param bootstrap: Iterable of bootstrap resample `n` sample values to use
             per model. If `False`, don't bootstrap
         :param verbose: verbosity (print timings etc)
         """
         self.verbose = verbose
 
-        self.n_features = n_features
+        self.feat_ratio = feat_ratio
         self.n_estimators = n_estimators
         self.max_iters = max_iters
 
         self.bootstrap = bootstrap
 
+        self.n_feats_subsp = None
+        self.sub_sps_inds = None
 
+        self.X_L = None
+        self.X_U = None
+        self.y_L = None
+
+        self.estimators = [clone(h) for _ in range(self.n_estimators)]
 
     def fit_init(self, X, y):
-        pass
+        n_feats = np.unique(y)
+        self.n_feats_subsp = self.feat_ratio * n_feats
+        self.sub_sps_inds = [np.random.permutation(n_feats)[:self.n_feats_subsp]
+                             for _ in range(self.n_estimators)]
+
+        ind_u = np.isnan(y)
+        self.X_L = X[~ind_u, :]
+        self.X_U = X[ind_u, :]
+        self.y_L = y[~ind_u]
+
 
     def fit_iter(self):
+        preds = np.zeros()
+        for sub_i in range(self.n_estimators):
+            X_L_sub = self.X_L[:, self.sub_sps_inds[sub_i]]
+            y_L_sub = self.y_L[self.sub_sps_inds[sub_i]]
+            self.estimators[sub_i].fit(X_L_sub, y_L_sub)
+            y_pred = self.estimators[sub_i].predict(self.X_U)
+            preds.append(y_pred)
+
+
         pass
 
-    def transfer_obs(self, transfers):
-        pass
-
-        return len(inds_remove)
 
     def fit(self, X, y):
         """
@@ -82,8 +106,8 @@ class Rasco(BaseEstimator, ClassifierMixin):
 
         # Begin actual training
         start = time()
-        for t in range(self.max_iters):
-            print 'Iter %d' % t
+        for j in range(self.max_iters):
+            print 'Iter %d' % j
             tic = time()
 
             ret = self.fit_iter()
