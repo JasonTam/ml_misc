@@ -44,6 +44,7 @@ class Rasco(BaseEstimator, ClassifierMixin):
     """
 
     def __init__(self, base_estimator=None, feat_ratio=0.5, n_estimators=8, max_iters=20,
+                 y_validation=None,
                  n_jobs=1,
                  verbose=False, log_handler=None):
         # todo: immutable arguments please
@@ -52,6 +53,7 @@ class Rasco(BaseEstimator, ClassifierMixin):
         :param max_iters: max number of iterations
         :param n_estimators: number of sub classifiers to use
         :param feat_ratio: ratio of features to use per subspace
+        :param y_validation: labels for unlabeled obs for the sake of validation
         :param n_jobs: number of jobs to run in parallel
         :param verbose: verbose logging
         :param log_handler: custom log handler can be passed in
@@ -82,6 +84,8 @@ class Rasco(BaseEstimator, ClassifierMixin):
         # self.estimators = [clone(h) for _ in range(self.n_estimators)]
         self.estimators = None
 
+        self.y_val = y_validation
+
     def get_transfers(self, preds):
         """
         :param preds: shape = (n_ests, n_obs, n_classes)
@@ -89,13 +93,19 @@ class Rasco(BaseEstimator, ClassifierMixin):
         preds_avg = np.mean(preds, axis=0)
         y_preds = np.argmax(preds_avg, axis=1)
         ind = np.argmax(np.max(preds_avg, axis=1), 0)
-        self.log.debug('Best candidate: Class=%g | Prob: %g'
-                       % (y_preds[ind], np.max(np.max(preds_avg, axis=1), 0)))
+        if self.y_val is None:
+            self.log.debug('Best candidate: pred_class=%g | Prob: %g'
+                           % (y_preds[ind], np.max(np.max(preds_avg, axis=1), 0)))
+        else:
+            self.log.debug('Best candidate: pred=%g true=%g | Prob: %g'
+                           % (y_preds[ind], self.y_val[ind], np.max(np.max(preds_avg, axis=1), 0)))
         return [ind], y_preds[ind]
 
     def transfer(self, tfer_inds, y_tfer):
         X_tfer = self.X_U[tfer_inds, :]
         self.X_U = np.delete(self.X_U, list(tfer_inds), axis=0)  # Remove pt from set
+        if self.y_val is not None:
+            self.y_val = np.delete(self.y_val, list(tfer_inds))
         self.X_L, self.y_L = shuffle_unison(
             np.r_[self.X_L, X_tfer],
             np.r_[self.y_L, y_tfer],)
@@ -193,6 +203,7 @@ if __name__ == '__main__':
                     feat_ratio=0.5,
                     n_estimators=8,
                     max_iters=20,
+                    y_validation=y_test,
                     n_jobs=1,
                     verbose=True,
                     log_handler=logging.StreamHandler(sys.stdout))
