@@ -161,11 +161,11 @@ if __name__ == '__main__':
     from sklearn.ensemble import ExtraTreesRegressor
     from sklearn.svm import SVR
     from sklearn.metrics import accuracy_score
-    from sklearn.datasets import load_iris
+    from sklearn.datasets import load_iris, make_circles
+    from sklearn.cross_validation import KFold, StratifiedKFold
+
     iris = load_iris()
     X, y = iris.data, iris.target
-
-    from sklearn.cross_validation import KFold, StratifiedKFold
 
     kf = KFold(n=len(y), n_folds=2)
     skf = StratifiedKFold(y, n_folds=2)
@@ -196,4 +196,3 @@ if __name__ == '__main__':
 
     print 'Rasco score:', scores
     print 'LogisticReg score:', scores_base
-
