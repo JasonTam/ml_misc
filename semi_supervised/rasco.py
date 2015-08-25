@@ -101,7 +101,11 @@ class Rasco(BaseEstimator, ClassifierMixin):
             np.r_[self.y_L, y_tfer],)
 
     def fit_init(self, X, y):
-        self.estimators = [clone(self.base_estimator) for _ in range(self.n_estimators)]
+        if isinstance(self.base_estimator, list):
+            self.estimators = self.base_estimator
+            self.n_estimators = len(self.estimators)
+        else:
+            self.estimators = [clone(self.base_estimator) for _ in range(self.n_estimators)]
         n_feats = X.shape[1]
         self.n_feats_subsp = self.feat_ratio * n_feats
         self.sub_sps_inds = [np.random.permutation(n_feats)[:self.n_feats_subsp]
@@ -163,7 +167,7 @@ if __name__ == '__main__':
     from sklearn.neighbors import KNeighborsRegressor
     from sklearn.linear_model import LinearRegression, LogisticRegression, ElasticNet
     from sklearn.ensemble import ExtraTreesRegressor
-    from sklearn.svm import SVR
+    from sklearn.svm import SVR, SVC
     from sklearn.metrics import accuracy_score
     from sklearn.datasets import load_iris, make_circles
     from sklearn.cross_validation import KFold, StratifiedKFold
@@ -183,7 +187,8 @@ if __name__ == '__main__':
         X_all = np.r_[X_train, X_test]
         y_all = np.r_[y_train, np.nan*np.ones(len(y_test))]
 
-        h = LogisticRegression()
+        # h = LogisticRegression()
+        h = [LogisticRegression() for _ in range(8)]
         clf = Rasco(base_estimator=h,
                     feat_ratio=0.5,
                     n_estimators=8,
