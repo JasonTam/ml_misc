@@ -117,7 +117,7 @@ class Rasco(BaseEstimator, ClassifierMixin):
         else:
             self.estimators = [clone(self.base_estimator) for _ in range(self.n_estimators)]
         n_feats = X.shape[1]
-        self.n_feats_subsp = self.feat_ratio * n_feats
+        self.n_feats_subsp = np.round(self.feat_ratio * n_feats)
         self.sub_sps_inds = [np.random.permutation(n_feats)[:self.n_feats_subsp]
                              for _ in range(self.n_estimators)]
 
