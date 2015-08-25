@@ -150,7 +150,7 @@ class CoReg(BaseEstimator, ClassifierMixin):
                 clf_params = self.h[j].get_params()
                 clf_type = type(self.h[j])
                 if self.n_jobs > 1:
-                    d_xu_l = Parallel(n_jobs=self.n_jobs)(
+                    d_xu_l = Parallel(n_jobs=self.n_jobs, backend='threading')(
                         delayed(calc_d)(clf_type, x_u,
                                         self.h[j], self.L[j], self.y[j],
                                         self.nn_trackers[j],
