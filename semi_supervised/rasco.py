@@ -88,7 +88,8 @@ class Rasco(BaseEstimator, ClassifierMixin):
         preds_avg = np.mean(preds, axis=0)
         y_preds = np.argmax(preds_avg, axis=1)
         ind = np.argmax(np.max(preds_avg, axis=1), 0)
-        self.log.debug('Best candidate prob: %g' % np.max(np.max(preds_avg, axis=1), 0))
+        self.log.debug('Best candidate: Class=%g | Prob: %g'
+                       % (y_preds[ind], np.max(np.max(preds_avg, axis=1), 0)))
         return [ind], y_preds[ind]
 
     def transfer(self, tfer_inds, y_tfer):
