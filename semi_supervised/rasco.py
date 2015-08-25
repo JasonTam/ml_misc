@@ -40,12 +40,12 @@ class Rasco(BaseEstimator, ClassifierMixin):
         IEEE International Joint Conference on. IEEE, 2008.
     """
 
-    def __init__(self, h=None, feat_ratio=0.5, n_estimators=8, max_iters=20,
+    def __init__(self, base_estimator=None, feat_ratio=0.5, n_estimators=8, max_iters=20,
                  bootstrap=False,
                  verbose=False, log_handler=None):
         # todo: immutable arguments please
         """
-        :param h: base estimator
+        :param base_estimator: base estimator
         :param max_iters: max number of iterations
         :param n_estimators: number of sub classifiers to use
         :param feat_ratio: ratio of features to use per subspace
@@ -76,7 +76,7 @@ class Rasco(BaseEstimator, ClassifierMixin):
         self.X_U = None
         self.y_L = None
         self.classes_ = None
-        self.h = h
+        self.base_estimator = base_estimator
 
         # self.estimators = [clone(h) for _ in range(self.n_estimators)]
         self.estimators = None
@@ -98,7 +98,7 @@ class Rasco(BaseEstimator, ClassifierMixin):
             np.r_[self.y_L, y_tfer],)
 
     def fit_init(self, X, y):
-        self.estimators = [clone(h) for _ in range(self.n_estimators)]
+        self.estimators = [clone(self.h) for _ in range(self.n_estimators)]
         n_feats = X.shape[1]
         self.n_feats_subsp = self.feat_ratio * n_feats
         self.sub_sps_inds = [np.random.permutation(n_feats)[:self.n_feats_subsp]
@@ -184,7 +184,7 @@ if __name__ == '__main__':
         y_all = np.r_[y_train, np.nan*np.ones(len(y_test))]
 
         h = LogisticRegression()
-        clf = Rasco(h=h,
+        clf = Rasco(base_estimator=h,
                     feat_ratio=0.5,
                     n_estimators=8,
                     max_iters=20,
