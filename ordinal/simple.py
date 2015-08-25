@@ -45,6 +45,7 @@ class SimpleOrdinalClassifier(BaseEstimator, ClassifierMixin):
     def __init__(self, base_estimator=None,
                  base_estimator_type=None, base_estimator_params=None,
                  label_transformer=None,
+                 nan_support=True,
                  n_jobs=-1):
         """
         :param base_estimator: base binary estimator object
@@ -52,6 +53,7 @@ class SimpleOrdinalClassifier(BaseEstimator, ClassifierMixin):
         :param base_estimator_params: params to initialize `base_estimator_type` if given
         :param label_transformer: transformation to apply to labels before binary split
             (ex. transforming to categorical format)
+        :param nan_support: support for NaN targets for semi-supervised base estimators
         :param n_jobs: # of threads to run
         :return:
         """
@@ -59,6 +61,7 @@ class SimpleOrdinalClassifier(BaseEstimator, ClassifierMixin):
         self.base_estimator_type = base_estimator_type if base_estimator_type else {}
         self.base_estimator_params = base_estimator_params
         self.label_transformer = label_transformer
+        self.nan_support = nan_support
 
         self.n_jobs = multiprocessing.cpu_count() if n_jobs == -1 else n_jobs
 
@@ -67,12 +70,18 @@ class SimpleOrdinalClassifier(BaseEstimator, ClassifierMixin):
         self.estimators_ = None
 
     def fit(self, X, y, **fit_params):
-        self.classes_ = np.unique(y)
+        self.classes_ = np.unique(y[~np.isnan(y)])
         self.k_ = len(self.classes_)
         
         # Fitting binary classifiers at each cut
         # new binary targets
-        c_bins = [y > cut for cut in sorted(self.classes_)[:-1]]
+        if self.nan_support:
+            c_bins = []
+            for cut in sorted(self.classes_)[:-1]:
+                y_bin = (y > cut).astype(float)
+                y_bin[np.isnan(y)] = np.nan
+        else:
+            c_bins = [y > cut for cut in sorted(self.classes_)[:-1]]
 
         if self.n_jobs > 1:
             self.estimators_ = Parallel(n_jobs=self.n_jobs, backend='threading')\
