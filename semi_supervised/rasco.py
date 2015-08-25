@@ -1,6 +1,8 @@
 import numpy as np
 from sklearn.base import BaseEstimator, ClassifierMixin, clone
 import itertools
+from joblib import Parallel, delayed
+import multiprocessing
 from sklearn.base import clone
 from sklearn.tree import DecisionTreeClassifier
 import logging
@@ -16,18 +18,19 @@ def shuffle_unison(a, b):
     return c[:, :a.size//len(a)].reshape(a.shape), c[:, a.size//len(a):].reshape(b.shape)
 
 
-def get_transfer_inds(U_preds, tfer_threshs, tfer_weights):
-    U_pred_avg = np.array(U_preds).mean(axis=0)  # Ensemble of base preds
-
-    tfer_prob = ((U_pred_avg - tfer_threshs)/(1-tfer_threshs))*tfer_weights
-    rng = np.random.rand(*tfer_prob.shape)
-    winner = tfer_prob > rng
-
-    inds = winner.sum(axis=1).astype(bool)
-    U_y_pred = winner.argmax(axis=1)
-    print U_pred_avg.max(axis=0)
-    return inds, U_y_pred
-
+def fit_sub(sub_inds, X_L, y_L, X_U, est):
+    """ Fits a particular subspace and predicts unlabeled observations
+    :param sub_inds: feature inds to create subspace
+    :param X_L: feature corresponding to labeled observations
+    :param y_L: targets of labeled observations
+    :param X_U: features of unlabeled observations
+    :param est: estimator to use
+    :return: prediction probabilities of unlabeled observations
+    """
+    X_L_sub = X_L[:, sub_inds]
+    est.fit(X_L_sub, y_L)
+    probs_pred = est.predict_proba(X_U[:, sub_inds])
+    return probs_pred
 
 class Rasco(BaseEstimator, ClassifierMixin):
     """ A Random Subspace Method for Co-Training
@@ -41,7 +44,7 @@ class Rasco(BaseEstimator, ClassifierMixin):
     """
 
     def __init__(self, base_estimator=None, feat_ratio=0.5, n_estimators=8, max_iters=20,
-                 bootstrap=False,
+                 n_jobs=1,
                  verbose=False, log_handler=None):
         # todo: immutable arguments please
         """
@@ -49,8 +52,7 @@ class Rasco(BaseEstimator, ClassifierMixin):
         :param max_iters: max number of iterations
         :param n_estimators: number of sub classifiers to use
         :param feat_ratio: ratio of features to use per subspace
-        :param bootstrap: Iterable of bootstrap resample `n` sample values to use
-            per model. If `False`, don't bootstrap
+        :param n_jobs: number of jobs to run in parallel
         :param verbose: verbose logging
         :param log_handler: custom log handler can be passed in
         """
@@ -62,12 +64,11 @@ class Rasco(BaseEstimator, ClassifierMixin):
                 # pass
                 # log_handler = logging.StreamHandler(sys.stdout)
                 self.log.addHandler(log_handler)
+        self.n_jobs = multiprocessing.cpu_count() if n_jobs == -1 else n_jobs
 
         self.feat_ratio = feat_ratio
         self.n_estimators = n_estimators
         self.max_iters = max_iters
-
-        self.bootstrap = bootstrap
 
         self.n_feats_subsp = None
         self.sub_sps_inds = None
@@ -113,12 +114,10 @@ class Rasco(BaseEstimator, ClassifierMixin):
         self.classes_ = np.unique(self.y_L)
 
     def fit_iter(self):
-        preds = np.zeros((self.n_estimators, len(self.X_U), len(self.classes_)))
-        for sub_i in range(self.n_estimators):
-            X_L_sub = self.X_L[:, self.sub_sps_inds[sub_i]]
-            self.estimators[sub_i].fit(X_L_sub, self.y_L)
-            probs_pred = self.estimators[sub_i].predict_proba(self.X_U[:, self.sub_sps_inds[sub_i]])
-            preds[sub_i, :, :] = probs_pred
+        preds_list = Parallel(n_jobs=self.n_jobs, backend='threading')\
+            (delayed(fit_sub)(sub_inds, self.X_L, self.y_L, self.X_U, est)
+             for sub_inds, est in zip(self.sub_sps_inds, self.estimators))
+        preds = np.array(preds_list)
 
         tfer_inds, y_tfer = self.get_transfers(preds)
 
@@ -189,6 +188,7 @@ if __name__ == '__main__':
                     feat_ratio=0.5,
                     n_estimators=8,
                     max_iters=20,
+                    n_jobs=1,
                     verbose=True,
                     log_handler=logging.StreamHandler(sys.stdout))
         clf.fit(X_all, y_all)
