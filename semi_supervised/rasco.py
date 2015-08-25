@@ -98,7 +98,7 @@ class Rasco(BaseEstimator, ClassifierMixin):
             np.r_[self.y_L, y_tfer],)
 
     def fit_init(self, X, y):
-        self.estimators = [clone(self.h) for _ in range(self.n_estimators)]
+        self.estimators = [clone(self.base_estimator) for _ in range(self.n_estimators)]
         n_feats = X.shape[1]
         self.n_feats_subsp = self.feat_ratio * n_feats
         self.sub_sps_inds = [np.random.permutation(n_feats)[:self.n_feats_subsp]
