@@ -132,6 +132,13 @@ class Stacking(BaseEstimator, ClassifierMixin):
                 y_base = self.get_base_data(y, 'y', base_params)
 
                 X_base_train, y_base_train = X_base[train_ind], y_base[train_ind]
+
+                # Todo: need to append unlabeled points if there is a semi-supervised base method
+                # Todo: ahhh this is bad
+                nan_inds = np.isnan(y_base)
+                X_base_train = np.r_[X_base_train, X_base[nan_inds]]
+                y_base_train = np.r_[y_base_train, y_base[nan_inds]]
+
                 X_base_holdout, y_base_holdout = X_base[holdout_ind], y_base[holdout_ind]
 
                 # Fit base model
