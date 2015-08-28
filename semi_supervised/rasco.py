@@ -8,6 +8,7 @@ from sklearn.tree import DecisionTreeClassifier
 import logging
 
 from scipy.stats import describe
+from collections import Counter
 
 from time import time
 import sys
@@ -103,16 +104,22 @@ class Rasco(BaseEstimator, ClassifierMixin):
 
         if len(ind) < 10:
             probs_desc = maxes[ind]
+            xfer_preds = y_preds[ind]
+            if self.y_val:
+                xfer_true = self.y_val[ind]
         else:
             probs_desc = describe(maxes[ind])
+            xfer_preds = Counter(y_preds[ind])
+            if self.y_val:
+                xfer_true = Counter(self.y_val[ind])
 
         if self.y_val is None:
             self.log.debug('Best candidate: pred_class=%s | Prob: %s'
-                           % (str(y_preds[ind]), str(probs_desc))
+                           % (str(xfer_preds), str(probs_desc))
                            )
         else:
             self.log.debug('Best candidate: pred=%s true=%s | Prob: %s'
-                           % (str(y_preds[ind]), str(self.y_val[ind]), str(probs_desc)))
+                           % (str(xfer_preds), str(xfer_true), str(probs_desc)))
         return ind, y_preds[ind]
 
     def transfer(self, tfer_inds, y_tfer):
