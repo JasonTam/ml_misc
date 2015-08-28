@@ -27,6 +27,7 @@ if __name__ == '__main__':
                   feat_ratio=0.5,
                   n_estimators=8,
                   max_iters=5,
+                  n_xfer=2,
                   n_jobs=1,
                   verbose=True,
                   log_handler=logging.StreamHandler(sys.stdout))
@@ -37,11 +38,11 @@ if __name__ == '__main__':
         KNeighborsRegressor(n_neighbors=20),
         # ExtraTreesRegressor(n_estimators=400),
     ]
-    meta_est = LinearRegression()
+    meta_est = SVR()
 
     scores_baseline = []
     scores = []
-    kf = KFold(len(y), n_folds=4)
+    kf = KFold(len(y), n_folds=2)
     for train_ind, val_ind in kf:
         X_train_k, X_val_k = X[train_ind], X[val_ind]
         y_train_k, y_val_k = y[train_ind], y[val_ind]

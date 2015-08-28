@@ -32,6 +32,7 @@ def fit_sub(sub_inds, X_L, y_L, X_U, est):
     probs_pred = est.predict_proba(X_U[:, sub_inds])
     return probs_pred
 
+
 class Rasco(BaseEstimator, ClassifierMixin):
     """ A Random Subspace Method for Co-Training
         A semi-supervised model for classification
@@ -44,6 +45,7 @@ class Rasco(BaseEstimator, ClassifierMixin):
     """
 
     def __init__(self, base_estimator=None, feat_ratio=0.5, n_estimators=8, max_iters=20,
+                 n_xfer=1,
                  y_validation=None,
                  n_jobs=1,
                  verbose=False, log_handler=None):
@@ -71,6 +73,7 @@ class Rasco(BaseEstimator, ClassifierMixin):
         self.feat_ratio = feat_ratio
         self.n_estimators = n_estimators
         self.max_iters = max_iters
+        self.n_xfer = n_xfer
 
         self.n_feats_subsp = None
         self.sub_sps_inds = None
@@ -92,16 +95,21 @@ class Rasco(BaseEstimator, ClassifierMixin):
         """
         preds_avg = np.mean(preds, axis=0)
         y_preds = np.argmax(preds_avg, axis=1)
-        ind = np.argmax(np.max(preds_avg, axis=1), 0)
+        maxes = np.max(preds_avg, axis=1)
+        # ind = np.argmax(maxes, 0)   # n_xfer=1
+        ind = maxes.argsort()[-self.n_xfer:][::-1]
+
         if self.y_val is None:
-            self.log.debug('Best candidate: pred_class=%g | Prob: %g'
-                           % (y_preds[ind], np.max(np.max(preds_avg, axis=1), 0)))
+            self.log.debug('Best candidate: pred_class=%s | Prob: %s'
+                           % (str(y_preds[ind]), maxes[ind])
+                           )
         else:
             self.log.debug('Best candidate: pred=%g true=%g | Prob: %g'
                            % (y_preds[ind], self.y_val[ind], np.max(np.max(preds_avg, axis=1), 0)))
-        return [ind], y_preds[ind]
+        return ind, y_preds[ind]
 
     def transfer(self, tfer_inds, y_tfer):
+        # import pdb; pdb.set_trace()
         X_tfer = self.X_U[tfer_inds, :]
         self.X_U = np.delete(self.X_U, list(tfer_inds), axis=0)  # Remove pt from set
         if self.y_val is not None:
