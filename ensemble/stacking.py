@@ -195,6 +195,7 @@ class Stacking(BaseEstimator, ClassifierMixin):
         else:
             X_meta = X_base_preds
         y_meta = y_base_preds
+        self.log.debug(':::[Fit meta model %s]:::' % type(self.meta_estimator).__name__)
         self.meta_estimator.fit(X_meta, y_meta, **meta_params['fit'])
 
         # Retrain the base estimators on entire set
