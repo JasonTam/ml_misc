@@ -163,7 +163,7 @@ class Stacking(BaseEstimator, ClassifierMixin):
                     self.log.debug('\tTime predict_proba (keras):\t%g s' % toc)
                 elif self.use_probs and hasattr(est, 'predict_proba'):
                     all_classes = list(np.unique(y_base[~np.isnan(y_base)]))
-                    self.log.debug('\Number unique classes:\t%g' % len(all_classes))
+                    self.log.debug('\tNumber unique classes:\t%g' % len(all_classes))
                     base_pred_raw = est.predict_proba(X_base_holdout, **base_params['predict'])
                     toc = time.time() - tic
                     base_pred = np.zeros((len(base_pred_raw),
