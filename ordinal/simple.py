@@ -41,7 +41,7 @@ class SimpleOrdinalClassifier(BaseEstimator, ClassifierMixin):
     
     The discrete encoded classes should have ordinal values
     """
-    
+
     def __init__(self, base_estimator=None,
                  base_estimator_type=None, base_estimator_params=None,
                  label_transformer=None,
@@ -72,7 +72,7 @@ class SimpleOrdinalClassifier(BaseEstimator, ClassifierMixin):
     def fit(self, X, y, **fit_params):
         self.classes_ = np.unique(y[~np.isnan(y)])
         self.k_ = len(self.classes_)
-        
+
         # Fitting binary classifiers at each cut
         # new binary targets
         if self.nan_support:
@@ -85,7 +85,7 @@ class SimpleOrdinalClassifier(BaseEstimator, ClassifierMixin):
             c_bins = [y > cut for cut in sorted(self.classes_)[:-1]]
 
         if self.n_jobs > 1:
-            self.estimators_ = Parallel(n_jobs=self.n_jobs, backend='threading')\
+            self.estimators_ = Parallel(n_jobs=self.n_jobs, backend='threading') \
                 (delayed(fit_bin)(X, c_bin,
                                   self.base_estimator, self.base_estimator_type, self.base_estimator_params,
                                   self.label_transformer,
@@ -101,15 +101,15 @@ class SimpleOrdinalClassifier(BaseEstimator, ClassifierMixin):
                 self.estimators_.append(fitted_clf)
 
         return self
-    
+
     def predict_proba(self, X, **pred_params):
         """Probs corresponding to self.classes_"""
         p = np.array([clf.predict_proba(X, **pred_params)[:, 1]
-              for clf in self.estimators_]).T
+                      for clf in self.estimators_]).T
         pr = -np.diff(np.c_[np.ones(p.shape[0]), p, np.zeros(p.shape[0])],
                       axis=1)
         return pr
-    
+
     def predict(self, X, weighted=False, **pred_params):
         if weighted:
             return self.predict_weighted(X, **pred_params)
@@ -121,8 +121,58 @@ class SimpleOrdinalClassifier(BaseEstimator, ClassifierMixin):
         probs = self.predict_proba(X, **pred_params)
         if geometric:
             return np.exp(
-                np.sum(probs*np.log(self.classes_), axis=1) /
+                np.sum(probs * np.log(self.classes_), axis=1) /
                 np.sum(probs, axis=1))
         else:
             return np.sum(self.classes_ * probs, axis=1)
 
+
+if __name__ == '__main__':
+    from sklearn.metrics import mean_squared_error
+    from sklearn.datasets import load_boston
+    from sklearn.cross_validation import KFold
+    from sklearn.svm import SVC
+    from sklearn.metrics import accuracy_score, mean_squared_error
+    from sklearn.tree import DecisionTreeClassifier
+    from sklearn.base import clone
+    import xgboost as xgb
+
+    boston = load_boston()
+    X, y = boston.data, boston.target
+    _, bins = np.histogram(y, bins=30)
+
+    y_binned = np.digitize(y, bins)
+
+    # h = DecisionTreeClassifier()
+    h = xgb.XGBClassifier(
+        objective="binary:logistic",
+        n_estimators=30,
+        learning_rate=0.1,
+        max_depth=5,
+        min_child_weight=6,
+        subsample=0.7,
+        colsample_bytree=0.7,
+        silent=True,
+    )
+
+    kf = KFold(n=len(y_binned), n_folds=2)
+
+    scores = []
+    scores_base = []
+    for train_ind, test_ind in kf:
+        X_train, X_test = X[train_ind], X[test_ind]
+        y_train, y_test = y_binned[train_ind], y_binned[test_ind]
+
+        clf = SimpleOrdinalClassifier(clone(h))
+        clf.fit(X_train, y_train)
+        y_pred = clf.predict(X_test)
+
+        scores.append(mean_squared_error(y_test, y_pred))
+
+        clf_base = clone(h)
+        clf_base.fit(X_train, y_train)
+        y_pred_base = clf_base.predict(X_test)
+        scores_base.append(mean_squared_error(y_test, y_pred_base))
+
+    print 'Simp score:', scores, np.mean(scores)
+    print 'Base score:', scores_base, np.mean(scores_base)
