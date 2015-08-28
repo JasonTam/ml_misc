@@ -109,7 +109,6 @@ class Rasco(BaseEstimator, ClassifierMixin):
         return ind, y_preds[ind]
 
     def transfer(self, tfer_inds, y_tfer):
-        # import pdb; pdb.set_trace()
         X_tfer = self.X_U[tfer_inds, :]
         self.X_U = np.delete(self.X_U, list(tfer_inds), axis=0)  # Remove pt from set
         if self.y_val is not None:
@@ -117,6 +116,8 @@ class Rasco(BaseEstimator, ClassifierMixin):
         self.X_L, self.y_L = shuffle_unison(
             np.r_[self.X_L, X_tfer],
             np.r_[self.y_L, y_tfer],)
+        self.log.debug('L-shape: %s \t U-shape: %s'
+                       % (str(self.X_L.shape), str(self.X_U.shape)))
 
     def fit_init(self, X, y):
         if isinstance(self.base_estimator, list):
