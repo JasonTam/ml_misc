@@ -136,8 +136,9 @@ class Stacking(BaseEstimator, ClassifierMixin):
                 # Todo: need to append unlabeled points if there is a semi-supervised base method
                 # Todo: ahhh this is bad
                 nan_inds = np.isnan(y_base)
-                X_base_train = np.r_[X_base_train, X_base[nan_inds]]
-                y_base_train = np.r_[y_base_train, y_base[nan_inds]]
+                if any(nan_inds):
+                    X_base_train = np.r_[X_base_train, X_base[nan_inds]]
+                    y_base_train = np.r_[y_base_train, y_base[nan_inds]]
 
                 X_base_holdout, y_base_holdout = X_base[holdout_ind], y_base[holdout_ind]
 
@@ -249,6 +250,36 @@ class Stacking(BaseEstimator, ClassifierMixin):
         else:
             X_meta = base_preds
         final_pred = self.meta_estimator.predict(X_meta, **meta_params['predict'])
+        return final_pred
+    
+    def predict_proba(self, X, **pred_params):
+        # Parse params
+        if not len(pred_params) and self.pred_params:
+            pred_params = self.pred_params
+        param_d = param_map(pred_params)
+
+        base_preds = []
+        for ii, est in enumerate(self.base_estimators):
+            # Setup special params & datasets
+            base_params = param_d[str(ii)].copy()
+            X_base = self.get_base_data(X, 'X', base_params)
+
+            # base_pred = est.predict(X, **base_params)
+            if self.use_probs and hasattr(est, 'predict_proba'):
+                base_pred = est.predict_proba(X_base, **base_params['predict'])
+            else:
+                base_pred = est.predict(X_base, **base_params['predict'])[:, None]
+
+            base_preds.append(base_pred)
+
+        base_preds = np.concatenate(base_preds, axis=1)
+
+        meta_params = param_d['meta']
+        if self.include_orig_feats:
+            X_meta = np.c_[base_preds, X]
+        else:
+            X_meta = base_preds
+        final_pred = self.meta_estimator.predict_proba(X_meta, **meta_params['predict'])
         return final_pred
 
 
