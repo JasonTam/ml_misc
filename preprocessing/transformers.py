@@ -29,7 +29,7 @@ class IndexSelectTformer(FitlessMixin):
         self.indices = indices
         
     def transform(self, X, y=None, **fit_params):
-        return X[:, indices]
+        return X[:, self.indices]
     
 class ThreshSelectScaleTformer(TransformerMixin, BaseEstimator):
     def __init__(self, scaler=StandardScaler(), thresh_mean=0.2):
