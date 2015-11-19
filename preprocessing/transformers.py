@@ -31,6 +31,27 @@ class IndexSelectTformer(FitlessMixin):
     def transform(self, X, y=None, **fit_params):
         return X[:, indices]
     
+class ThreshSelectScaleTformer(TransformerMixin, BaseEstimator):
+    def __init__(self, scaler=StandardScaler(), thresh_mean=0.2):
+        self.scaler = scaler
+        self.thresh_mean = thresh_mean
+        self.ind_bigvals = None
+        
+    def fit_transform(self, X, y=None, **fit_params):
+        self.fit(X, y, **fit_params)
+        return self.transform(X)
+
+    def fit(self, X, y=None, **fit_params):
+        self.ind_bigvals = np.where(np.squeeze(np.asarray(X.mean(axis=0))) > thresh_mean)[0]
+        if any(self.ind_bigvals):
+            self.scaler.fit(X[:, self.ind_bigvals].toarray())
+        return self
+
+    def transform(self, X, y=None, **fit_params):
+        X[:, ind_bigvals] = self.scaler.transform(X[:, self.ind_bigvals].toarray())
+        return X    
+
+    
 class GeneralTformer(FitlessMixin):
     def __init__(self, fun):
         self.fun = fun
