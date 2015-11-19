@@ -42,7 +42,7 @@ class ThreshSelectScaleTformer(TransformerMixin, BaseEstimator):
         return self.transform(X)
 
     def fit(self, X, y=None, **fit_params):
-        self.ind_bigvals = np.where(np.squeeze(np.asarray(X.mean(axis=0))) > thresh_mean)[0]
+        self.ind_bigvals = np.where(np.squeeze(np.asarray(X.mean(axis=0))) > self.thresh_mean)[0]
         if any(self.ind_bigvals):
             self.scaler.fit(X[:, self.ind_bigvals].toarray())
         return self
