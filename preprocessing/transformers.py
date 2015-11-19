@@ -48,7 +48,7 @@ class ThreshSelectScaleTformer(TransformerMixin, BaseEstimator):
         return self
 
     def transform(self, X, y=None, **fit_params):
-        X[:, ind_bigvals] = self.scaler.transform(X[:, self.ind_bigvals].toarray())
+        X[:, self.ind_bigvals] = self.scaler.transform(X[:, self.ind_bigvals].toarray())
         return X    
 
     
