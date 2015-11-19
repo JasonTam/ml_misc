@@ -24,6 +24,13 @@ class IdentityTformer(FitlessMixin):
     def transform(self, X, y=None, **fit_params):
         return X
 
+class IndexSelectTformer(FitlessMixin):
+    def __init__(self, indices):
+        self.indices = indices
+        
+    def transform(self, X, y=None, **fit_params):
+        return X[:, indices]
+    
 class GeneralTformer(FitlessMixin):
     def __init__(self, fun):
         self.fun = fun
