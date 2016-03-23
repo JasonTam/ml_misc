@@ -136,7 +136,7 @@ class Stacking(BaseEstimator, ClassifierMixin):
                 # Todo: need to append unlabeled points if there is a semi-supervised base method
                 # Todo: ahhh this is bad
                 nan_inds = np.isnan(y_base)
-                if any(nan_inds):
+                if nan_inds.any():#any(nan_inds):
                     X_base_train = np.r_[X_base_train, X_base[nan_inds]]
                     y_base_train = np.r_[y_base_train, y_base[nan_inds]]
 
@@ -165,12 +165,17 @@ class Stacking(BaseEstimator, ClassifierMixin):
                 elif self.use_probs and hasattr(est, 'predict_proba'):
                     all_classes = list(np.unique(y_base[~np.isnan(y_base)]))
                     self.log.debug('\tNumber unique classes:\t%g' % len(all_classes))
+
                     base_pred_raw = est.predict_proba(X_base_holdout, **base_params['predict'])
                     toc = time.time() - tic
-                    base_pred = np.zeros((len(base_pred_raw),
-                                          len(all_classes)))
-                    for pred, c in zip(base_pred_raw.T, est.classes_):
-                        base_pred[:, all_classes.index(c)] = pred
+                    if len(all_classes)<=2:
+                        # If binary classes, just take the prob of 1
+                        base_pred = base_pred_raw[:, 1][:, None]
+                    else:
+                        base_pred = np.zeros((len(base_pred_raw),
+                                              len(all_classes)))
+                        for pred, c in zip(base_pred_raw.T, est.classes_):  # Currently broken with keras
+                            base_pred[:, all_classes.index(c)] = pred
 
                     self.log.debug('\tTime predict_proba:\t%g s' % toc)
                 else:
@@ -237,6 +242,8 @@ class Stacking(BaseEstimator, ClassifierMixin):
             # base_pred = est.predict(X, **base_params)
             if self.use_probs and hasattr(est, 'predict_proba'):
                 base_pred = est.predict_proba(X_base, **base_params['predict'])
+                if base_pred.shape[1]<=2:
+                    base_pred = base_pred[:, 1][:, None]
             else:
                 base_pred = est.predict(X_base, **base_params['predict'])[:, None]
 
@@ -267,6 +274,8 @@ class Stacking(BaseEstimator, ClassifierMixin):
             # base_pred = est.predict(X, **base_params)
             if self.use_probs and hasattr(est, 'predict_proba'):
                 base_pred = est.predict_proba(X_base, **base_params['predict'])
+                if base_pred.shape[1]<=2:
+                    base_pred = base_pred[:, 1][:, None]
             else:
                 base_pred = est.predict(X_base, **base_params['predict'])[:, None]
 
