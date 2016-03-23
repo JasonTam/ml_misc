@@ -45,7 +45,8 @@ class Stacking(BaseEstimator, ClassifierMixin):
                  extra_data=None,
                  verbose=0,
                  log_handler=None,
-                 save_level0_out=False):
+                 save_level0_out=False,
+                 seed=0):
         # todo: if a tuple if given for extradata, concatenate the datasets
         """
         :param base_estimators: base level 0 estimators
@@ -94,6 +95,19 @@ class Stacking(BaseEstimator, ClassifierMixin):
 
         self.save_level0_out = save_level0_out
         self.level0_out = None
+        self.seed = seed
+
+        self.reseed_ests()
+
+
+    def reseed_ests(self, seed=None):
+        if seed is None:
+            seed = self.seed
+        self.log.debug('SEED: %s' % str(seed))
+        for est in self.base_estimators + [self.meta_estimator]:
+            if hasattr(est, 'random_state'):
+                est.random_state = seed
+        
 
     def get_base_data(self, var, var_str, base_params):
         var_base_name = base_params.pop(var_str, None)
@@ -111,7 +125,7 @@ class Stacking(BaseEstimator, ClassifierMixin):
         holdout_base_preds = []
         holdout_xs = []
         holdout_ys = []
-        kf = KFold(n=len(y), n_folds=self.cv)
+        kf = KFold(n=len(y), n_folds=self.cv, random_state=self.seed)
 
         # KFold to make holdout sets for meta estimator
         for k_i, (train_ind, holdout_ind) in enumerate(kf):
